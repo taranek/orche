@@ -29,10 +29,10 @@ function createWindow() {
   console.log('[review] argv:', process.argv)
 
   win = new BrowserWindow({
-    width: 1100,
+    width: 1200,
     height: 720,
     minWidth: 1200,
-    minHeight: 400,
+    minHeight: 720,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 7, y: 4 },
     vibrancy: 'fullscreen-ui',
