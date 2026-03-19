@@ -1,4 +1,4 @@
-import { IconFileDoc } from './Icons'
+import { File, X } from 'lucide-react'
 import type { FileChange } from '../types'
 
 export function TabBar({ files, selected, onSelect }: {
@@ -22,15 +22,13 @@ export function TabBar({ files, selected, onSelect }: {
             }`}
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
-            <IconFileDoc size={13} />
+            <File size={13} className="opacity-50" strokeWidth={1.5} />
             <span>{fileName}</span>
             {isActive && (
               <span
                 className="ml-1 w-4 h-4 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:bg-hover transition-all text-fg-tertiary"
               >
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M1 1l6 6M7 1l-6 6" />
-                </svg>
+                <X size={8} strokeWidth={1.5} />
               </span>
             )}
           </button>

@@ -1,5 +1,17 @@
 import { palettes, type PaletteName } from '@orche/shared'
-import { IconCheck, SwatchPair } from './Icons'
+import { Check } from 'lucide-react'
+
+function SwatchPair({ bg, accent, size = 12 }: { bg: string; accent: string; size?: number }) {
+  return (
+    <span
+      className="inline-flex shrink-0 rounded-sm overflow-hidden border border-edge"
+      style={{ width: size, height: size }}
+    >
+      <span style={{ background: bg, width: '50%', height: '100%' }} />
+      <span style={{ background: accent, width: '50%', height: '100%' }} />
+    </span>
+  )
+}
 
 const paletteLabels: Record<PaletteName, string> = {
   obsidian: 'Obsidian',
@@ -30,7 +42,7 @@ export function ThemePanel({ theme, onThemeChange }: {
             >
               <SwatchPair bg={p.bg.base} accent={p.accent.base} size={14} />
               <span className="flex-1">{paletteLabels[name]}</span>
-              {isActive && <IconCheck />}
+              {isActive && <Check size={14} />}
             </button>
           )
         })}

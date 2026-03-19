@@ -1,4 +1,4 @@
-import { IconFiles, IconComment, IconPalette } from './Icons'
+import { FileText, MessageCircle, Palette } from 'lucide-react'
 import type { SidePanel } from '../types'
 
 export function IconRail({ active, onChange, commentCount }: {
@@ -7,11 +7,11 @@ export function IconRail({ active, onChange, commentCount }: {
   commentCount: number
 }) {
   const topItems: { id: SidePanel; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { id: 'files', icon: <IconFiles />, label: 'Changed Files' },
-    { id: 'comments', icon: <IconComment />, label: 'Comments', badge: commentCount || undefined },
+    { id: 'files', icon: <FileText size={20} strokeWidth={1.4} />, label: 'Changed Files' },
+    { id: 'comments', icon: <MessageCircle size={20} strokeWidth={1.4} />, label: 'Comments', badge: commentCount || undefined },
   ]
 
-  const bottomItem = { id: 'theme' as SidePanel, icon: <IconPalette />, label: 'Theme' }
+  const bottomItem = { id: 'theme' as SidePanel, icon: <Palette size={20} strokeWidth={1.4} />, label: 'Theme' }
 
   return (
     <div className="w-12 shrink-0 flex flex-col items-center pt-2 pb-3 gap-2 bg-sidebar/60 border-r border-edge/50">

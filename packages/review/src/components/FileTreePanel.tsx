@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronRight, Folder, File } from 'lucide-react'
 import type { FileTreeNode } from '../types'
 
 function FileTreeItem({
@@ -27,15 +28,11 @@ function FileTreeItem({
           className="flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-[12px] text-fg hover:bg-hover rounded border-none bg-transparent cursor-pointer font-[inherit]"
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
-          <svg
-            width="10" height="10" viewBox="0 0 16 16" fill="currentColor"
+          <ChevronRight
+            size={10}
             className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-          >
-            <path d="M6 4l4 4-4 4" />
-          </svg>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-fg-secondary/60">
-            <path d="M1.5 2h4.586a1 1 0 01.707.293l.914.914a1 1 0 00.707.293H14.5a1 1 0 011 1v8a1 1 0 01-1 1h-13a1 1 0 01-1-1V3a1 1 0 011-1z" />
-          </svg>
+          />
+          <Folder size={14} className="text-fg-secondary/60" />
           <span className="font-medium">{node.name}</span>
         </button>
         {isExpanded && node.children && (
@@ -74,10 +71,7 @@ function FileTreeItem({
       ) : (
         <span className="w-[8px]" />
       )}
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-fg-secondary/60 shrink-0">
-        <path d="M4 2h5l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M9 2v4h4" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
+      <File size={12} className="text-fg-secondary/60 shrink-0" strokeWidth={1.2} />
       <span className="truncate">{node.name}</span>
     </button>
   )

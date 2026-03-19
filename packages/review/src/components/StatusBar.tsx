@@ -1,5 +1,5 @@
 import { ButtonPill } from '@orche/shared'
-import { IconSend } from './Icons'
+import { Send, GitBranch } from 'lucide-react'
 
 export function StatusBar({ branch, fileCount, commentCount, onSubmit }: {
   branch: string | null
@@ -13,12 +13,7 @@ export function StatusBar({ branch, fileCount, commentCount, onSubmit }: {
         {branch && (
           <>
             <div className="flex items-center gap-1.5">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
-                <line x1="6" y1="3" x2="6" y2="15" />
-                <circle cx="18" cy="6" r="3" />
-                <circle cx="6" cy="18" r="3" />
-                <path d="M18 9a9 9 0 0 1-9 9" />
-              </svg>
+              <GitBranch size={11} className="opacity-60" />
               <span className="opacity-80">{branch}</span>
             </div>
             <span className="opacity-25">·</span>
@@ -30,7 +25,7 @@ export function StatusBar({ branch, fileCount, commentCount, onSubmit }: {
       </div>
       {commentCount > 0 && (
         <ButtonPill variant="accent" onClick={onSubmit}>
-          <IconSend /> Submit Review ({commentCount})
+          <Send size={12} /> Submit Review ({commentCount})
         </ButtonPill>
       )}
     </div>
