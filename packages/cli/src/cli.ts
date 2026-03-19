@@ -131,8 +131,32 @@ function detectAgentPane(): string | undefined {
   return undefined;
 }
 
+function printUsage(): void {
+  console.log(`
+orche — orchestrate agents across git worktrees
+
+Usage:
+  orche <task>                Start a new session for <task>
+  orche review [path]        Open the review UI for a worktree
+    --tmux=<pane>            Send review back to a tmux pane
+
+Examples:
+  orche fix-auth             Create worktree + tmux session for "fix-auth"
+  orche review               Review changes in current directory
+  orche review ./worktree    Review changes in a specific worktree
+
+Requires a ${CONFIG_NAME} file in the current directory.
+See .agents.example.json for the config format.
+`);
+}
+
 function main(): void {
   const subcommand = process.argv[2];
+
+  if (!subcommand || subcommand === "--help" || subcommand === "-h") {
+    printUsage();
+    process.exit(0);
+  }
 
   if (subcommand === "review") {
     // orche review [worktree-path] [--tmux=<pane>]

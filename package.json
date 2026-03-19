@@ -8,6 +8,8 @@
     "build:cli": "pnpm --filter @orche/cli build",
     "build:review": "pnpm --filter @orche/review build",
     "dev:review": "pnpm --filter @orche/review dev",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "link:cli": "pnpm --filter @orche/cli build && cd packages/cli && pnpm link --global",
+    "dev:cli": "cd packages/cli && pnpm link --global && pnpm run dev"
   }
 }
