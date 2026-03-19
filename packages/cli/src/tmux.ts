@@ -14,6 +14,8 @@ export function buildLayout(
 ): void {
   if (!isSplit(node)) {
     // Single pane — just send the command to the initial pane
+    const paneId = getActivePaneId(session);
+    renamePaneTitle(paneId, node.name);
     sendCommand(session, node.command);
     return;
   }
@@ -23,8 +25,9 @@ export function buildLayout(
 
   // Create the remaining panes by splitting
   for (let i = 1; i < node.panes.length; i++) {
+    const child = node.panes[i];
     const splitFlag = node.direction === "horizontal" ? "-h" : "-v";
-    const sizePercent = Math.floor(100 / (node.panes.length - i + 1));
+    const sizePercent = child.size ?? Math.floor(100 / (node.panes.length - i + 1));
 
     execSync(
       `tmux split-window ${splitFlag} -t ${paneIds[0]} -p ${sizePercent} -c "${worktreePath}"`,
@@ -45,6 +48,7 @@ export function buildLayout(
       execSync(`tmux select-pane -t ${paneId}`, { stdio: "ignore" });
       buildNestedSplit(session, child, paneId, worktreePath);
     } else {
+      renamePaneTitle(paneId, child.name);
       sendCommandToPane(paneId, child.command);
     }
   }
@@ -59,8 +63,9 @@ function buildNestedSplit(
   const paneIds = [parentPaneId];
 
   for (let i = 1; i < node.panes.length; i++) {
+    const child = node.panes[i];
     const splitFlag = node.direction === "horizontal" ? "-h" : "-v";
-    const sizePercent = Math.floor(100 / (node.panes.length - i + 1));
+    const sizePercent = child.size ?? Math.floor(100 / (node.panes.length - i + 1));
 
     execSync(
       `tmux split-window ${splitFlag} -t ${paneIds[i - 1]} -p ${sizePercent} -c "${worktreePath}"`,
@@ -74,6 +79,7 @@ function buildNestedSplit(
     if (isSplit(child)) {
       buildNestedSplit(session, child, paneIds[i], worktreePath);
     } else {
+      renamePaneTitle(paneIds[i], child.name);
       sendCommandToPane(paneIds[i], child.command);
     }
   }
@@ -90,6 +96,12 @@ function listPaneIds(session: string): string[] {
     .toString()
     .trim()
     .split("\n");
+}
+
+function renamePaneTitle(paneId: string, name: string): void {
+  execSync(`tmux select-pane -t ${paneId} -T ${escapeForTmux(name)}`, {
+    stdio: "ignore",
+  });
 }
 
 function sendCommand(session: string, command: string): void {

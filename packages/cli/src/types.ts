@@ -1,6 +1,8 @@
 export interface PaneConfig {
   name: string;
   command: string;
+  /** Percentage size of this pane (optional, defaults to equal) */
+  size?: number;
 }
 
 export interface SplitConfig {
