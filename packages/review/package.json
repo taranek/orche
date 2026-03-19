@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
+  "author": "taranek",
+  "description": "Code review UI for orche",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taranek/orche.git",
+    "directory": "packages/review"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -13,6 +20,7 @@
   "build": {
     "appId": "com.orche.review",
     "productName": "orche-review",
+    "publish": null,
     "directories": {
       "output": "release"
     },
