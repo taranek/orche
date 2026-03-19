@@ -166,9 +166,14 @@ async function findLatestRelease(): Promise<{
   const { platform, arch, ext } = getPlatformKey();
 
   // Match asset by platform and arch in filename
+  // electron-builder naming: orche-review-0.0.3-mac.zip (x64), orche-review-0.0.3-arm64-mac.zip (arm64)
+  // For x64, electron-builder omits the arch from the filename
   const asset = reviewRelease.assets.find((a) => {
     const name = a.name.toLowerCase();
-    return name.includes(platform) && name.includes(arch) && name.endsWith(`.${ext}`);
+    if (!name.includes(platform) || !name.endsWith(`.${ext}`) || name.includes("blockmap")) return false;
+    if (arch === "arm64") return name.includes("arm64");
+    // x64: match files that have the platform but NOT arm64
+    return !name.includes("arm64");
   });
 
   if (!asset) return null;
