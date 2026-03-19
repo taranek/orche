@@ -24,7 +24,7 @@ orche is two things:
 ## Installation
 
 ```bash
-npm install -g orche
+npm install -g @taranek/orche --registry=https://npm.pkg.github.com
 ```
 
 ## Quick start

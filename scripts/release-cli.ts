@@ -23,6 +23,8 @@ const newVersion =
   bump === "--minor" ? `${major}.${minor + 1}.0` :
   `${major}.${minor}.${patch + 1}`;
 
+const tag = `cli-v${newVersion}`;
+
 // Check for uncommitted changes
 const status = execSync("git status --porcelain").toString().trim();
 if (status) {
@@ -30,21 +32,28 @@ if (status) {
   process.exit(1);
 }
 
+// Check tag doesn't already exist
+try {
+  execSync(`git rev-parse ${tag}`, { stdio: "ignore" });
+  console.error(`error: tag ${tag} already exists`);
+  process.exit(1);
+} catch {
+  // tag doesn't exist, good
+}
+
 // Write bumped version
 console.log(`${pkg.version} → ${newVersion}`);
 pkg.version = newVersion;
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 
-// Build, commit, publish
-execSync("pnpm --filter @orche/cli build", { stdio: "inherit" });
+// Build, commit, tag
+execSync("pnpm --filter @taranek/orche build", { stdio: "inherit" });
 execSync(`git add "${pkgPath}"`, { stdio: "inherit" });
 execSync(`git commit -m "release: cli v${newVersion}"`, { stdio: "inherit" });
-execSync(`git tag cli-v${newVersion}`, { stdio: "inherit" });
+execSync(`git tag ${tag}`, { stdio: "inherit" });
 
-console.log(`publishing @orche/cli@${newVersion} to npm...`);
-execSync("npm publish --access public", { cwd: path.dirname(pkgPath), stdio: "inherit" });
+console.log(`pushing ${tag}...`);
+execSync(`git push origin HEAD ${tag}`, { stdio: "inherit" });
 
-console.log("pushing...");
-execSync(`git push origin HEAD cli-v${newVersion}`, { stdio: "inherit" });
-
-console.log(`\ndone — @orche/cli@${newVersion} published to npm`);
+console.log(`\ndone — ${tag} pushed, GitHub Actions will publish to GitHub Packages`);
+console.log(`https://github.com/taranek/orche/actions`);

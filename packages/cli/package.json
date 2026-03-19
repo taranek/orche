@@ -1,9 +1,17 @@
 {
-  "name": "@orche/cli",
+  "name": "@taranek/orche",
   "version": "0.0.1",
   "type": "module",
   "bin": {
     "orche": "./dist/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taranek/orche.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsc",

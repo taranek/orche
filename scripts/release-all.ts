@@ -47,7 +47,7 @@ for (const pkg of packages) {
 }
 
 // Build CLI
-execSync("pnpm --filter @orche/cli build", { stdio: "inherit" });
+execSync("pnpm --filter @taranek/orche build", { stdio: "inherit" });
 
 // Single commit with both bumps
 execSync("git add packages/cli/package.json packages/review/package.json", { stdio: "inherit" });
@@ -57,18 +57,11 @@ execSync(`git commit -m "release: cli v${versions.cli} + review v${versions.revi
 execSync(`git tag cli-v${versions.cli}`, { stdio: "inherit" });
 execSync(`git tag review-v${versions.review}`, { stdio: "inherit" });
 
-// Publish CLI to npm
-console.log(`\npublishing @orche/cli@${versions.cli} to npm...`);
-execSync("npm publish --access public", {
-  cwd: path.resolve(__dirname, "../packages/cli"),
-  stdio: "inherit",
-});
-
-// Push commit + both tags (review tag triggers GH Actions)
+// Push commit + both tags (both trigger GH Actions)
 console.log("pushing...");
 execSync(`git push origin HEAD cli-v${versions.cli} review-v${versions.review}`, { stdio: "inherit" });
 
 console.log(`\ndone:`);
-console.log(`  cli    → npm @orche/cli@${versions.cli}`);
+console.log(`  cli    → GitHub Actions publishing @taranek/orche@${versions.cli}`);
 console.log(`  review → GitHub Actions building review-v${versions.review}`);
 console.log(`  https://github.com/taranek/orche/actions`);
