@@ -4,3 +4,4 @@ dist-electron
 *.tgz
 .DS_Store
 .orche/
+.orche.local.json

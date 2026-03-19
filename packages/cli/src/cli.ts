@@ -7,7 +7,8 @@ import { createWorktree } from "./worktree.js";
 import { buildLayout } from "./tmux.js";
 import type { AgentsConfig } from "./types.js";
 
-const CONFIG_NAME = ".agents.json";
+const CONFIG_NAME = ".orche.json";
+const CONFIG_LOCAL_NAME = ".orche.local.json";
 
 function die(msg: string): never {
   console.error(`error: ${msg}`);
@@ -23,7 +24,14 @@ function ensureTmux(): void {
 }
 
 function loadConfig(cwd: string): AgentsConfig {
+  const localPath = path.join(cwd, CONFIG_LOCAL_NAME);
   const configPath = path.join(cwd, CONFIG_NAME);
+
+  if (existsSync(localPath)) {
+    const raw = readFileSync(localPath, "utf-8");
+    return JSON.parse(raw) as AgentsConfig;
+  }
+
   if (!existsSync(configPath)) {
     die(`no ${CONFIG_NAME} found in ${cwd}`);
   }
@@ -146,7 +154,8 @@ Examples:
   orche review ./worktree    Review changes in a specific worktree
 
 Requires a ${CONFIG_NAME} file in the current directory.
-See .agents.example.json for the config format.
+Use ${CONFIG_LOCAL_NAME} for local overrides (not committed).
+See .orche.example.json for the config format.
 `);
 }
 
