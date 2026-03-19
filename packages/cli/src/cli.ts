@@ -5,6 +5,7 @@ import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
 import { buildLayout } from "./tmux.js";
+import { getReviewBinaryPath } from "./review-manager.js";
 import type { AgentsConfig } from "./types.js";
 
 const CONFIG_NAME = ".orche.json";
@@ -39,20 +40,9 @@ function loadConfig(cwd: string): AgentsConfig {
   return JSON.parse(raw) as AgentsConfig;
 }
 
-function resolveReviewPackage(): string {
-  // Resolve the review package relative to this CLI package
-  const cliDir = path.dirname(new URL(import.meta.url).pathname);
-  const reviewDir = path.resolve(cliDir, "../../review");
-  if (!existsSync(path.join(reviewDir, "package.json"))) {
-    die(`@orche/review package not found at ${reviewDir}. Run pnpm install in the monorepo.`);
-  }
-  return reviewDir;
-}
+async function runReview(worktreePath: string, tmuxTarget?: string): Promise<void> {
+  const binaryPath = await getReviewBinaryPath();
 
-function runReview(worktreePath: string, tmuxTarget?: string): void {
-  const reviewDir = resolveReviewPackage();
-
-  // Try to find the built electron app, fall back to dev mode
   const args = ["--worktree=" + path.resolve(worktreePath)];
   if (tmuxTarget) {
     args.push("--tmux=" + tmuxTarget);
@@ -60,12 +50,9 @@ function runReview(worktreePath: string, tmuxTarget?: string): void {
 
   console.log(`opening review for ${worktreePath}...`);
 
-  // Launch via electron directly (dev mode)
-  const electronBin = path.join(reviewDir, "node_modules/.bin/electron");
-  const child = spawn(electronBin, [reviewDir, ...args], {
+  const child = spawn(binaryPath, args, {
     stdio: "ignore",
     detached: true,
-    env: { ...process.env, VITE_DEV_SERVER_URL: undefined },
   });
   child.unref();
 }
@@ -159,7 +146,7 @@ See .orche.example.json for the config format.
 `);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const subcommand = process.argv[2];
 
   if (!subcommand || subcommand === "--help" || subcommand === "-h") {
@@ -177,10 +164,13 @@ function main(): void {
     const tmuxTarget =
       process.argv.find((a) => a.startsWith("--tmux="))?.split("=")[1] ||
       detectAgentPane();
-    runReview(worktreePath, tmuxTarget);
+    await runReview(worktreePath, tmuxTarget);
   } else {
     startSession();
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(`error: ${err.message}`);
+  process.exit(1);
+});

@@ -5,3 +5,4 @@ dist-electron
 .DS_Store
 .orche/
 .orche.local.json
+release

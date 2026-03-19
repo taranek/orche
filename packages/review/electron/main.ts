@@ -43,7 +43,9 @@ function createWindow() {
     },
   })
 
-  win.webContents.openDevTools({ mode: 'detach' })
+  if (VITE_DEV_SERVER_URL) {
+    win.webContents.openDevTools({ mode: 'detach' })
+  }
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)

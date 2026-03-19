@@ -6,8 +6,33 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "tsc && vite build",
+    "package": "pnpm build && electron-builder --publish never",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.orche.review",
+    "productName": "orche-review",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "!node_modules"
+    ],
+    "mac": {
+      "target": [
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        { "target": "tar.gz", "arch": ["x64", "arm64"] }
+      ],
+      "category": "Development"
+    }
   },
   "dependencies": {
     "@orche/shared": "workspace:*",
