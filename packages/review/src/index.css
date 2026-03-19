@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+/* Scan shared package for Tailwind classes used in CodeEditor components */
+@source "../../shared/src";
+
+@theme {
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  /* Surfaces — bg-sidebar, bg-base, bg-surface, bg-elevated, bg-hover */
+  --color-sidebar: var(--bg-sidebar);
+  --color-base: var(--bg-base);
+  --color-surface-low: var(--bg-surface-low);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-hover: var(--bg-hover);
+
+  /* Foregrounds — text-fg, text-fg-secondary, text-fg-tertiary */
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-tertiary: var(--text-tertiary);
+
+  /* Edges — border-edge, border-edge-active */
+  --color-edge: var(--border);
+  --color-edge-active: var(--border-active);
+
+  /* Accent */
+  --color-accent: var(--accent, #e2a048);
+  --color-accent-dim: var(--accent-dim, rgba(226, 160, 72, 0.12));
+
+  /* Status */
+  --color-status-green: var(--status-green, #3ecf71);
+  --color-status-red: var(--status-red, #e5534b);
+  --color-status-cyan: var(--status-cyan, #52aeff);
+  --color-status-amber: var(--status-amber, #d4a038);
+
+  /* Vibrancy */
+  --color-vibrancy-overlay: var(--vibrancy-overlay);
+  --color-vibrancy-fg: var(--vibrancy-foreground);
+
+  /* Scrollbar */
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--scrollbar-thumb-hover);
+}
+
+/* Base styles */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+body {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.08));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.14));
+}
+
+/* Hide scrollbar for specific elements */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Squircle corners — macOS Tahoe style (Chrome 139+) */
+* {
+  corner-shape: squircle;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-dim, rgba(226, 160, 72, 0.25));
+  color: inherit;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+/* CodeMirror — ensure editor fills container */
+.cm-editor {
+  height: 100% !important;
+}
+
+/* Active tab notch corners */
+.tab-notch::before,
+.tab-notch::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+}
+.tab-notch::before {
+  left: -8px;
+  background: radial-gradient(circle at 0 0, transparent 8px, var(--bg-base) 8px);
+}
+.tab-notch::after {
+  right: -8px;
+  background: radial-gradient(circle at 100% 0, transparent 8px, var(--bg-base) 8px);
+}

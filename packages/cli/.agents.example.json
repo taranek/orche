@@ -1,0 +1,9 @@
+{
+  "layout": {
+    "direction": "horizontal",
+    "panes": [
+      { "name": "claude", "command": "claude" },
+      { "name": "dev", "command": "yarn dev" }
+    ]
+  }
+}
