@@ -111,8 +111,8 @@ function startSession(): void {
   }
 }
 
-function detectClaudePane(): string | undefined {
-  // If inside a tmux session, find the first pane (where claude typically runs)
+function detectAgentPane(): string | undefined {
+  // If inside a tmux session, find the first pane (where the agent typically runs)
   if (!process.env.TMUX) return undefined;
   try {
     const sessionName = execSync("tmux display-message -p '#S'")
@@ -143,7 +143,7 @@ function main(): void {
     const worktreePath = explicitPath || process.cwd();
     const tmuxTarget =
       process.argv.find((a) => a.startsWith("--tmux="))?.split("=")[1] ||
-      detectClaudePane();
+      detectAgentPane();
     runReview(worktreePath, tmuxTarget);
   } else {
     startSession();

@@ -2,7 +2,7 @@
   "name": "orche",
   "private": true,
   "version": "0.0.1",
-  "description": "Orchestrate multiple Claude Code agents across git worktrees with a code review UI",
+  "description": "Orchestrate multiple agents across git worktrees with a code review UI",
   "scripts": {
     "build": "pnpm -r build",
     "build:cli": "pnpm --filter @orche/cli build",

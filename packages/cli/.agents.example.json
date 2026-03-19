@@ -2,7 +2,7 @@
   "layout": {
     "direction": "horizontal",
     "panes": [
-      { "name": "claude", "command": "claude" },
+      { "name": "agent", "command": "claude" },
       { "name": "dev", "command": "yarn dev" }
     ]
   }
