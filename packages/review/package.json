@@ -1,6 +1,6 @@
 {
   "name": "@orche/review",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
@@ -23,13 +23,25 @@
     ],
     "mac": {
       "target": [
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.developer-tools"
     },
     "linux": {
       "target": [
-        { "target": "tar.gz", "arch": ["x64", "arm64"] }
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "Development"
     }
