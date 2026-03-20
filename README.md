@@ -67,7 +67,6 @@ Opens the desktop review app for the current worktree.
 ```
 orche <task>                Start a new session for <task>
 orche review [path]        Open the review UI for a worktree
-  --tmux=<pane>            Send review feedback to a tmux pane
 ```
 
 ### Examples
@@ -157,9 +156,10 @@ The app has three panels:
 ### Reviewing workflow
 
 1. Open the review app with `orche review`
-2. Browse changed files in the file tree
+2. Browse changed files in the file tree — the list updates in real time as the agent works
 3. Click any line in the diff to add a comment
-4. Submit — your comments are saved as a markdown file in `.orche/reviews/` and, if a tmux target is set, pasted directly into the agent's pane
+4. Use the revert button to undo specific chunks — changes are written back to disk
+5. Submit — your comments and reverts are saved as a markdown file in `.orche/reviews/` and, if a tmux target is set, pasted directly into the agent's pane
 
 **Keyboard shortcuts in comment input:**
 
@@ -183,7 +183,7 @@ Four built-in color themes, persisted across sessions:
 ### Setup
 
 ```bash
-git clone https://github.com/anthropics/orche.git
+git clone https://github.com/taranek/orche.git
 cd orche
 pnpm install
 pnpm run build
