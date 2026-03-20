@@ -77,9 +77,11 @@ function createWindow() {
 
 // --- File watcher ---
 
-function getChangedFiles(cwd: string) {
-  return execAsync('git status --porcelain', { cwd }).then(({ stdout }) =>
-    stdout
+async function getChangedFiles(cwd: string) {
+  try {
+    // -uall expands untracked directories into individual files
+    const { stdout } = await execAsync('git status --porcelain -uall', { cwd })
+    return stdout
       .split('\n')
       .filter(Boolean)
       .map(line => {
@@ -87,7 +89,7 @@ function getChangedFiles(cwd: string) {
         const filePath = line.slice(3).trim()
         return { status, filePath }
       })
-      .filter(({ filePath }) => filePath.length > 0 && !filePath.endsWith('/'))
+      .filter(({ filePath }) => filePath.length > 0)
       .map(({ status, filePath }) => ({
         path: filePath,
         name: filePath.split('/').pop() || filePath,
@@ -98,7 +100,9 @@ function getChangedFiles(cwd: string) {
               ? 'added'
               : 'deleted' as const,
       }))
-  ).catch(() => [])
+  } catch {
+    return []
+  }
 }
 
 let watcher: FSWatcher | null = null
