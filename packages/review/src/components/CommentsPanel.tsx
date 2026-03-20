@@ -1,7 +1,10 @@
-export function CommentsPanel({ comments, onClickComment }: {
+import { useFileStore } from '../store/fileStore'
+
+export function CommentsPanel({ comments }: {
   comments: { id: string; filePath: string; lineNumber: number; text: string }[]
-  onClickComment: (filePath: string) => void
 }) {
+  const selectFile = useFileStore((s) => s.selectFile)
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-2 pb-3 pt-1">
@@ -13,7 +16,7 @@ export function CommentsPanel({ comments, onClickComment }: {
           comments.map(c => (
             <button
               key={c.id}
-              onClick={() => onClickComment(c.filePath)}
+              onClick={() => selectFile(c.filePath)}
               className="w-full text-left px-3 py-2.5 mb-1 rounded-lg bg-surface-low/60 hover:bg-surface border-none cursor-pointer transition-colors"
             >
               <div className="flex items-center gap-1.5 mb-1">

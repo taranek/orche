@@ -41,8 +41,6 @@ function loadConfig(cwd: string): AgentsConfig {
 }
 
 async function runReview(worktreePath: string, tmuxTarget?: string): Promise<void> {
-  const binaryPath = await getReviewBinaryPath();
-
   const args = ["--worktree=" + path.resolve(worktreePath)];
   if (tmuxTarget) {
     args.push("--tmux=" + tmuxTarget);
@@ -50,6 +48,23 @@ async function runReview(worktreePath: string, tmuxTarget?: string): Promise<voi
 
   console.log(`opening review for ${worktreePath}...`);
 
+  // Dev mode: launch electron from local monorepo
+  const cliDir = path.dirname(new URL(import.meta.url).pathname);
+  const localReviewDir = path.resolve(cliDir, "../../review");
+  const devReviewPath = process.env.ORCHE_REVIEW_DEV ||
+    (existsSync(path.join(localReviewDir, "package.json")) ? localReviewDir : undefined);
+  if (devReviewPath) {
+    const electronBin = path.join(devReviewPath, "node_modules/.bin/electron");
+    const child = spawn(electronBin, [devReviewPath, ...args], {
+      stdio: "ignore",
+      detached: true,
+      env: { ...process.env, VITE_DEV_SERVER_URL: undefined },
+    });
+    child.unref();
+    return;
+  }
+
+  const binaryPath = await getReviewBinaryPath();
   const child = spawn(binaryPath, args, {
     stdio: "ignore",
     detached: true,

@@ -1,19 +1,18 @@
 import { useState } from 'react'
 import { ChevronRight, Folder, File } from 'lucide-react'
+import { useFileStore } from '../store/fileStore'
 import type { FileTreeNode } from '../types'
 
 function FileTreeItem({
   node,
-  selectedFile,
-  onFileSelect,
   depth = 0,
 }: {
   node: FileTreeNode
-  selectedFile: string | null
-  onFileSelect: (path: string) => void
   depth?: number
 }) {
   const [isExpanded, setIsExpanded] = useState(true)
+  const selectedFile = useFileStore((s) => s.selectedFile)
+  const selectFile = useFileStore((s) => s.selectFile)
   const isSelected = node.path === selectedFile
 
   const statusColor = node.status
@@ -41,8 +40,6 @@ function FileTreeItem({
               <FileTreeItem
                 key={child.path}
                 node={child}
-                selectedFile={selectedFile}
-                onFileSelect={onFileSelect}
                 depth={depth + 1}
               />
             ))}
@@ -54,7 +51,7 @@ function FileTreeItem({
 
   return (
     <button
-      onClick={() => onFileSelect(node.path)}
+      onClick={() => selectFile(node.path)}
       className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-[12px] font-mono rounded border-none cursor-pointer font-[inherit] transition-colors ${
         isSelected
           ? 'bg-accent-dim text-fg'
@@ -77,11 +74,7 @@ function FileTreeItem({
   )
 }
 
-export function FileTreePanel({ tree, selectedFile, onSelect }: {
-  tree: FileTreeNode[]
-  selectedFile: string | null
-  onSelect: (path: string) => void
-}) {
+export function FileTreePanel({ tree }: { tree: FileTreeNode[] }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-1 pb-3 pt-1">
@@ -89,8 +82,6 @@ export function FileTreePanel({ tree, selectedFile, onSelect }: {
           <FileTreeItem
             key={node.path}
             node={node}
-            selectedFile={selectedFile}
-            onFileSelect={onSelect}
           />
         ))}
       </div>

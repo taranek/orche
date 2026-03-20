@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   ThemeProvider,
   CodeDiffEditor,
@@ -8,6 +8,7 @@ import {
 } from '@orche/shared'
 
 import { usePersistedTheme } from './hooks/usePersistedTheme'
+import { useFileStore } from './store/fileStore'
 import { buildFileTree } from './utils/buildFileTree'
 import type { FileChange, SidePanel } from './types'
 import { REVIEW_ID } from './types'
@@ -23,12 +24,15 @@ import { SubmittedScreen } from './components/SubmittedScreen'
 
 function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange: (name: PaletteName) => void }) {
   const [changes, setChanges] = useState<FileChange[]>([])
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [contentKey, setContentKey] = useState(0)
+  const selectedFile = useFileStore((s) => s.selectedFile)
+  const selectFile = useFileStore((s) => s.selectFile)
   const [original, setOriginal] = useState('')
   const [modified, setModified] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
+  const revertedFiles = useRef(new Set<string>())
 
   const {
     addComment,
@@ -50,33 +54,53 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   useEffect(() => {
     window.review.getChanges().then(setChanges)
     window.review.getBranch().then(setBranch)
+    return window.review.onFilesChanged(setChanges)
   }, [])
 
   useEffect(() => {
     if (!selectedFile && changes.length > 0) {
-      setSelectedFile(changes[0].path)
+      selectFile(changes[0].path)
     }
   }, [changes, selectedFile])
 
+  // Reload content when file changes on disk
   useEffect(() => {
     if (!selectedFile) return
     let cancelled = false
-    setOriginal('')
-    setModified('')
 
-    Promise.all([
-      window.review.readOriginal(selectedFile),
-      window.review.read(selectedFile),
-    ]).then(([orig, mod]) => {
-      if (cancelled) return
-      setOriginal(orig ?? '')
-      setModified(mod)
-    }).catch(err => {
-      console.error('Failed to load file:', selectedFile, err)
-    })
+    const loadContent = () => {
+      Promise.all([
+        window.review.readOriginal(selectedFile),
+        window.review.read(selectedFile),
+      ]).then(([orig, mod]) => {
+        if (cancelled) return
+        const newOriginal = orig ?? ''
+        setOriginal((prev) => {
+          setModified((prevMod) => {
+            if (prev !== newOriginal || prevMod !== mod) {
+              setContentKey((k) => k + 1)
+            }
+            return mod
+          })
+          return newOriginal
+        })
+      }).catch(err => {
+        console.error('Failed to load file:', selectedFile, err)
+      })
+    }
 
+    loadContent()
     return () => { cancelled = true }
-  }, [selectedFile])
+  }, [selectedFile, changes])
+
+  const handleChange = useCallback(
+    (content: string) => {
+      if (!selectedFile) return
+      revertedFiles.current.add(selectedFile)
+      window.review.write(selectedFile, content)
+    },
+    [selectedFile]
+  )
 
   const handleComment = useCallback(
     (line: number, text: string) => {
@@ -93,7 +117,9 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
   const handleSubmit = useCallback(async () => {
     const comments = submitReview(REVIEW_ID)
-    if (comments.length === 0) return
+    const reverted = revertedFiles.current
+
+    if (comments.length === 0 && reverted.size === 0) return
 
     const grouped = comments.reduce<Record<string, typeof comments>>(
       (acc, c) => {
@@ -104,6 +130,14 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     )
 
     let markdown = 'Code Review:\n'
+
+    if (reverted.size > 0) {
+      markdown += '\n## Reverted changes\nThe following files had changes reverted during review — do not re-apply them:\n'
+      for (const file of reverted) {
+        markdown += `- ${file}\n`
+      }
+    }
+
     for (const [file, fileComments] of Object.entries(grouped)) {
       markdown += `\n## ${file}\n`
       for (const c of fileComments.sort((a, b) => a.lineNumber - b.lineNumber)) {
@@ -124,11 +158,15 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
   return (
     <div className="h-full flex flex-col bg-vibrancy-overlay shadow-[inset_0_0_0_0.5px_var(--app-border)] rounded-[10px] overflow-hidden">
-      {/* Top drag bar — uniform background for traffic lights */}
+      {/* Top drag bar */}
       <div
-        className="h-6 shrink-0 bg-sidebar/60 border-b border-edge/40"
+        className="h-6 shrink-0 bg-sidebar/60 border-b border-edge/40 flex items-center justify-end pr-3"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      />
+      >
+        <span className="text-[9px] text-fg-tertiary font-mono opacity-40" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {new Date(__BUILD_TIME__).toLocaleTimeString()}
+        </span>
+      </div>
 
       <div className="flex-1 flex min-h-0">
       {/* Icon rail */}
@@ -143,17 +181,10 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
         <div className="flex-1 min-h-0">
           {sidePanel === 'files' && (
-            <FileTreePanel
-              tree={fileTree}
-              selectedFile={selectedFile}
-              onSelect={setSelectedFile}
-            />
+            <FileTreePanel tree={fileTree} />
           )}
           {sidePanel === 'comments' && (
-            <CommentsPanel
-              comments={pendingComments}
-              onClickComment={setSelectedFile}
-            />
+            <CommentsPanel comments={pendingComments} />
           )}
           {sidePanel === 'theme' && (
             <ThemePanel theme={theme} onThemeChange={onThemeChange} />
@@ -163,23 +194,20 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
       {/* Main editor area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <TabBar
-          files={changes}
-          selected={selectedFile}
-          onSelect={setSelectedFile}
-        />
+        <TabBar files={changes} />
 
         {/* Diff viewer */}
         <div className="flex-1 min-h-0 relative bg-base overflow-hidden">
           <div className="absolute inset-0">
             {selectedFile && (original !== '' || modified !== '') ? (
               <CodeDiffEditor
-                key={selectedFile}
+                key={`${selectedFile}-${contentKey}`}
                 original={original}
                 modified={modified}
                 mode="split"
                 filePath={selectedFile}
                 reviewMode={true}
+                onChange={handleChange}
                 existingComments={commentsForFile}
                 onComment={handleComment}
                 onDeleteComment={handleDeleteComment}

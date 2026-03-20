@@ -4,6 +4,7 @@ import path from 'node:path'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import chokidar, { type FSWatcher } from 'chokidar'
 
 const execAsync = promisify(exec)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -54,12 +55,71 @@ function createWindow() {
   }
 }
 
+// --- File watcher ---
+
+function getChangedFiles(cwd: string) {
+  return execAsync('git status --porcelain', { cwd }).then(({ stdout }) =>
+    stdout
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const status = line.slice(0, 2).trim()
+        const filePath = line.slice(3)
+        return {
+          path: filePath,
+          name: filePath.split('/').pop() || filePath,
+          status:
+            status === 'M' || status === 'MM'
+              ? 'modified'
+              : status === 'A' || status === '??' || status === 'AM'
+                ? 'added'
+                : 'deleted' as const,
+        }
+      })
+  ).catch(() => [])
+}
+
+let watcher: FSWatcher | null = null
+let pollInterval: NodeJS.Timeout | null = null
+
+function startWatching() {
+  if (!worktreePath || !win) return
+
+  const emitChanges = async () => {
+    if (!win || win.isDestroyed()) return
+    const changes = await getChangedFiles(worktreePath)
+    win.webContents.send('files:changed', { changes })
+  }
+
+  watcher = chokidar.watch(worktreePath, {
+    ignored: [/(^|[\/\\])\./, /node_modules/],
+    persistent: true,
+    ignoreInitial: true,
+  })
+  watcher.on('all', emitChanges)
+
+  // Poll every 2s as reliability fallback
+  pollInterval = setInterval(emitChanges, 2000)
+
+  // Emit initial state
+  emitChanges()
+}
+
+function stopWatching() {
+  if (watcher) { watcher.close(); watcher = null }
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
+}
+
 app.on('window-all-closed', () => {
+  stopWatching()
   app.quit()
   win = null
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  startWatching()
+})
 
 // --- IPC: pass worktree path to renderer ---
 
@@ -82,28 +142,7 @@ ipcMain.handle('review:getTmuxTarget', () => tmuxTarget ?? null)
 
 ipcMain.handle('files:getChanges', async () => {
   if (!worktreePath) return []
-  try {
-    const { stdout } = await execAsync('git status --porcelain', { cwd: worktreePath })
-    return stdout
-      .split('\n')
-      .filter(Boolean)
-      .map(line => {
-        const status = line.slice(0, 2).trim()
-        const filePath = line.slice(3)
-        return {
-          path: filePath,
-          name: filePath.split('/').pop() || filePath,
-          status:
-            status === 'M' || status === 'MM'
-              ? 'modified'
-              : status === 'A' || status === '??' || status === 'AM'
-                ? 'added'
-                : 'deleted',
-        }
-      })
-  } catch {
-    return []
-  }
+  return getChangedFiles(worktreePath)
 })
 
 ipcMain.handle('files:readOriginal', async (_event, { filePath }) => {
@@ -123,6 +162,12 @@ ipcMain.handle('files:read', async (_event, { filePath }) => {
   if (!worktreePath) return ''
   const fullPath = path.join(worktreePath, filePath)
   return readFile(fullPath, 'utf-8')
+})
+
+ipcMain.handle('files:write', async (_event, { filePath, content }: { filePath: string; content: string }) => {
+  if (!worktreePath) return
+  const fullPath = path.join(worktreePath, filePath)
+  await writeFile(fullPath, content, 'utf-8')
 })
 
 // --- IPC: submit review ---

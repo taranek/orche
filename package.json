@@ -11,7 +11,8 @@
     "dev:review": "pnpm --filter @orche/review dev",
     "typecheck": "pnpm -r typecheck",
     "link:cli": "pnpm --filter @taranek/orche build && cd packages/cli && pnpm link --global",
-    "dev:cli": "cd packages/cli && pnpm link --global && pnpm run dev",
+    "dev:cli": "cd packages/cli && pnpm link --global && ORCHE_REVIEW_DEV=$PWD/../review pnpm run dev",
+    "dev": "pnpm run build:review && pnpm run dev:cli",
     "release:cli": "npx tsx scripts/release-cli.ts",
     "release:review": "npx tsx scripts/release-review.ts",
     "release": "npx tsx scripts/release-all.ts"

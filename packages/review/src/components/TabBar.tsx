@@ -1,20 +1,20 @@
 import { File, X } from 'lucide-react'
+import { useFileStore } from '../store/fileStore'
 import type { FileChange } from '../types'
 
-export function TabBar({ files, selected, onSelect }: {
-  files: FileChange[]
-  selected: string | null
-  onSelect: (path: string) => void
-}) {
+export function TabBar({ files }: { files: FileChange[] }) {
+  const selectedFile = useFileStore((s) => s.selectedFile)
+  const selectFile = useFileStore((s) => s.selectFile)
+
   return (
     <div className="h-[38px] shrink-0 flex items-end bg-surface-low/50 overflow-x-auto scrollbar-none">
       {files.map(f => {
-        const isActive = f.path === selected
+        const isActive = f.path === selectedFile
         const fileName = f.path.split('/').pop() ?? f.path
         return (
           <button
             key={f.path}
-            onClick={() => onSelect(f.path)}
+            onClick={() => selectFile(f.path)}
             className={`group relative flex items-center gap-2 px-4 h-[36px] text-[12px] whitespace-nowrap cursor-pointer border-none font-[inherit] shrink-0 transition-all duration-100 ${
               isActive
                 ? 'bg-base text-fg rounded-t-lg tab-notch'
