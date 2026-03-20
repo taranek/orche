@@ -4,6 +4,7 @@ import path from 'node:path'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import chokidar, { type FSWatcher } from 'chokidar'
 
 const execAsync = promisify(exec)
@@ -22,6 +23,25 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 const worktreePath = process.argv.find(a => a.startsWith('--worktree='))?.split('=')[1]
   ?? process.argv[process.argv.length - 1]
 const tmuxTarget = process.argv.find(a => a.startsWith('--tmux='))?.split('=')[1]
+const cmuxSurface = process.argv.find(a => a.startsWith('--surface='))?.split('=')[1]
+
+// Read session.json for pane targets (written by orche CLI at session creation)
+interface SessionInfo { multiplexer: string; panes: Record<string, string> }
+let sessionInfo: SessionInfo | null = null
+try {
+  const sessionPath = path.join(worktreePath ?? '', '.orche', 'session.json')
+  sessionInfo = JSON.parse(readFileSync(sessionPath, 'utf-8'))
+} catch (e) {
+  console.log('[review] session.json read error:', e)
+}
+
+// Resolve the agent target: explicit flag > session.json first pane > nothing
+const agentMultiplexer = sessionInfo?.multiplexer ?? (tmuxTarget ? 'tmux' : cmuxSurface ? 'cmux' : null)
+const agentPaneId = tmuxTarget ?? cmuxSurface ?? (sessionInfo ? Object.values(sessionInfo.panes)[0] : undefined)
+
+console.log('[review] argv:', process.argv)
+console.log('[review] session.json:', sessionInfo)
+console.log('[review] agentMultiplexer:', agentMultiplexer, 'agentPaneId:', agentPaneId)
 
 let win: BrowserWindow | null
 
@@ -64,18 +84,20 @@ function getChangedFiles(cwd: string) {
       .filter(Boolean)
       .map(line => {
         const status = line.slice(0, 2).trim()
-        const filePath = line.slice(3)
-        return {
-          path: filePath,
-          name: filePath.split('/').pop() || filePath,
-          status:
-            status === 'M' || status === 'MM'
-              ? 'modified'
-              : status === 'A' || status === '??' || status === 'AM'
-                ? 'added'
-                : 'deleted' as const,
-        }
+        const filePath = line.slice(3).trim()
+        return { status, filePath }
       })
+      .filter(({ filePath }) => filePath.length > 0 && !filePath.endsWith('/'))
+      .map(({ status, filePath }) => ({
+        path: filePath,
+        name: filePath.split('/').pop() || filePath,
+        status:
+          status === 'M' || status === 'MM'
+            ? 'modified'
+            : status === 'A' || status === '??' || status === 'AM'
+              ? 'added'
+              : 'deleted' as const,
+      }))
   ).catch(() => [])
 }
 
@@ -85,9 +107,14 @@ let pollInterval: NodeJS.Timeout | null = null
 function startWatching() {
   if (!worktreePath || !win) return
 
+  let firstEmit = true
   const emitChanges = async () => {
     if (!win || win.isDestroyed()) return
     const changes = await getChangedFiles(worktreePath)
+    if (firstEmit) {
+      console.log('[review] changed files:', changes.map(c => `${c.status[0]} ${c.path}`))
+      firstEmit = false
+    }
     win.webContents.send('files:changed', { changes })
   }
 
@@ -161,7 +188,13 @@ ipcMain.handle('files:readOriginal', async (_event, { filePath }) => {
 ipcMain.handle('files:read', async (_event, { filePath }) => {
   if (!worktreePath) return ''
   const fullPath = path.join(worktreePath, filePath)
-  return readFile(fullPath, 'utf-8')
+  try {
+    const { statSync } = await import('node:fs')
+    if (statSync(fullPath).isDirectory()) return ''
+    return await readFile(fullPath, 'utf-8')
+  } catch {
+    return ''
+  }
 })
 
 ipcMain.handle('files:write', async (_event, { filePath, content }: { filePath: string; content: string }) => {
@@ -173,6 +206,11 @@ ipcMain.handle('files:write', async (_event, { filePath, content }: { filePath: 
 // --- IPC: submit review ---
 
 ipcMain.handle('review:submit', async (_event, { markdown }: { markdown: string }) => {
+  console.log('[review] submit called')
+  console.log('[review] tmuxTarget:', tmuxTarget)
+  console.log('[review] cmuxSurface:', cmuxSurface)
+  console.log('[review] worktreePath:', worktreePath)
+
   if (!worktreePath) return { success: false, error: 'No worktree path' }
 
   // Write review file
@@ -181,20 +219,37 @@ ipcMain.handle('review:submit', async (_event, { markdown }: { markdown: string 
   const filename = `${Date.now()}.md`
   const reviewPath = path.join(reviewsDir, filename)
   await writeFile(reviewPath, markdown, 'utf-8')
+  console.log('[review] saved to:', reviewPath)
 
-  // If tmux target specified, paste review into the pane
-  if (tmuxTarget) {
+  // Paste review into the agent's pane
+  if (agentMultiplexer === 'tmux' && agentPaneId) {
+    console.log('[review] sending via tmux to:', agentPaneId)
     try {
-      // Write to a temp file, load into tmux buffer, paste into target pane
       const tmpFile = path.join(reviewsDir, `.tmp-${Date.now()}`)
       await writeFile(tmpFile, markdown, 'utf-8')
       await execAsync(`tmux load-buffer "${tmpFile}"`)
-      await execAsync(`tmux paste-buffer -t "${tmuxTarget}"`)
-      await execAsync(`tmux send-keys -t "${tmuxTarget}" Enter`)
+      await execAsync(`tmux paste-buffer -t "${agentPaneId}"`)
+      await execAsync(`tmux send-keys -t "${agentPaneId}" Enter`)
       await import('node:fs').then(fs => fs.promises.unlink(tmpFile)).catch(() => {})
+      console.log('[review] tmux paste success')
     } catch (err) {
       console.error('[review] tmux paste failed:', err)
     }
+  } else if (agentMultiplexer === 'cmux' && agentPaneId) {
+    console.log('[review] sending via cmux to surface:', agentPaneId)
+    try {
+      const tmpFile = path.join(reviewsDir, `.tmp-${Date.now()}`)
+      await writeFile(tmpFile, markdown, 'utf-8')
+      await execAsync(`cmux set-buffer --name orche-review "$(cat '${tmpFile}')"`)
+      await execAsync(`cmux paste-buffer --name orche-review --surface ${agentPaneId}`)
+      await execAsync(`cmux send-key --surface ${agentPaneId} enter`)
+      await import('node:fs').then(fs => fs.promises.unlink(tmpFile)).catch(() => {})
+      console.log('[review] cmux paste success')
+    } catch (err) {
+      console.error('[review] cmux paste failed:', err)
+    }
+  } else {
+    console.log('[review] no target — review saved to file only')
   }
 
   return { success: true, path: reviewPath }

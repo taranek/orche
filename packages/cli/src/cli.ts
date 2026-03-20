@@ -4,9 +4,10 @@ import { readFileSync, existsSync } from "node:fs";
 import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
-import { buildLayout } from "./tmux.js";
+import { getMultiplexer } from "./multiplexer.js";
+import { buildLayout } from "./layout.js";
 import { getReviewBinaryPath } from "./review-manager.js";
-import type { AgentsConfig } from "./types.js";
+import type { AgentsConfig, MultiplexerType } from "./types.js";
 
 const CONFIG_NAME = ".orche.json";
 const CONFIG_LOCAL_NAME = ".orche.local.json";
@@ -16,13 +17,6 @@ function die(msg: string): never {
   process.exit(1);
 }
 
-function ensureTmux(): void {
-  try {
-    execSync("which tmux", { stdio: "ignore" });
-  } catch {
-    die("tmux is required — brew install tmux");
-  }
-}
 
 function loadConfig(cwd: string): AgentsConfig {
   const localPath = path.join(cwd, CONFIG_LOCAL_NAME);
@@ -40,11 +34,8 @@ function loadConfig(cwd: string): AgentsConfig {
   return JSON.parse(raw) as AgentsConfig;
 }
 
-async function runReview(worktreePath: string, tmuxTarget?: string): Promise<void> {
+async function runReview(worktreePath: string): Promise<void> {
   const args = ["--worktree=" + path.resolve(worktreePath)];
-  if (tmuxTarget) {
-    args.push("--tmux=" + tmuxTarget);
-  }
 
   console.log(`opening review for ${worktreePath}...`);
 
@@ -53,92 +44,67 @@ async function runReview(worktreePath: string, tmuxTarget?: string): Promise<voi
   const localReviewDir = path.resolve(cliDir, "../../review");
   const devReviewPath = process.env.ORCHE_REVIEW_DEV ||
     (existsSync(path.join(localReviewDir, "package.json")) ? localReviewDir : undefined);
+  const debug = !!process.env.ORCHE_DEBUG;
   if (devReviewPath) {
     const electronBin = path.join(devReviewPath, "node_modules/.bin/electron");
+    if (debug) console.error(`[review] launching: ${electronBin} ${[devReviewPath, ...args].join(" ")}`);
     const child = spawn(electronBin, [devReviewPath, ...args], {
-      stdio: "ignore",
-      detached: true,
+      stdio: debug ? ["ignore", "inherit", "inherit"] : "ignore",
+      detached: !debug,
       env: { ...process.env, VITE_DEV_SERVER_URL: undefined },
     });
-    child.unref();
+    if (!debug) child.unref();
     return;
   }
 
   const binaryPath = await getReviewBinaryPath();
+  if (debug) console.error(`[review] launching: ${binaryPath} ${args.join(" ")}`);
   const child = spawn(binaryPath, args, {
-    stdio: "ignore",
-    detached: true,
+    stdio: debug ? ["ignore", "inherit", "inherit"] : "ignore",
+    detached: !debug,
   });
   child.unref();
 }
 
-function startSession(): void {
-  ensureTmux();
+function getRepoRoot(cwd: string): string {
+  // If we're inside an orche worktree, walk up to the real repo
+  const orcheIdx = cwd.indexOf("/.orche/worktrees/");
+  if (orcheIdx !== -1) {
+    return cwd.slice(0, orcheIdx);
+  }
+  return cwd;
+}
 
-  const cwd = process.cwd();
+function startSession(): void {
+  const cwd = getRepoRoot(process.cwd());
   const repoName = path.basename(cwd);
-  const taskName = process.argv[2] || "session";
+  const taskName = process.argv.slice(2).find((a) => !a.startsWith("--")) || "session";
 
   const config = loadConfig(cwd);
+  const muxFlag: MultiplexerType | undefined =
+    process.argv.includes("--tmux") ? "tmux" :
+    process.argv.includes("--cmux") ? "cmux" :
+    undefined;
+  const mux = getMultiplexer(muxFlag ?? config.multiplexer);
 
   // 1. Create worktree
   console.log(`creating worktree for "${taskName}"...`);
   const { worktreePath } = createWorktree(cwd, taskName);
 
-  // 2. Create tmux session
+  // 2. Create session
   const sessionName = `${repoName}-${taskName}`.replace(
     /[^a-zA-Z0-9_-]/g,
     "-"
   );
 
-  // Kill existing session with same name
-  try {
-    execSync(`tmux kill-session -t "${sessionName}"`, { stdio: "ignore" });
-  } catch {
-    // no existing session, fine
-  }
-
-  execSync(
-    `tmux new-session -d -s "${sessionName}" -c "${worktreePath}"`,
-    { stdio: "ignore" }
-  );
-
-  // Enable mouse for pane resizing
-  execSync(`tmux set-option -t "${sessionName}" mouse on`, {
-    stdio: "ignore",
-  });
-
-  console.log(`tmux session: ${sessionName}`);
+  mux.createSession(sessionName, worktreePath);
+  console.log(`${mux.name} session: ${sessionName}`);
 
   // 3. Build pane layout
-  buildLayout(sessionName, config.layout, worktreePath);
+  buildLayout(mux, sessionName, config.layout, worktreePath);
 
   // 4. Attach
-  if (process.env.TMUX) {
-    execSync(`tmux switch-client -t "${sessionName}"`, { stdio: "inherit" });
-  } else {
-    execSync(`tmux attach-session -t "${sessionName}"`, { stdio: "inherit" });
-  }
-}
-
-function detectAgentPane(): string | undefined {
-  // If inside a tmux session, find the first pane (where the agent typically runs)
-  if (!process.env.TMUX) return undefined;
-  try {
-    const sessionName = execSync("tmux display-message -p '#S'")
-      .toString()
-      .trim();
-    // Get the first pane ID of the current session
-    const paneId = execSync(
-      `tmux list-panes -t "${sessionName}" -F "#{pane_id}" | head -1`
-    )
-      .toString()
-      .trim();
-    if (paneId) return paneId;
-  } catch {
-    // not in tmux or failed
-  }
-  return undefined;
+  mux.attach(sessionName);
 }
 
 function printUsage(): void {
@@ -170,16 +136,11 @@ async function main(): Promise<void> {
   }
 
   if (subcommand === "review") {
-    // orche review [worktree-path] [--tmux=<pane>]
-    // argv[3] is the first arg after "review", use cwd if not provided
     const explicitPath = process.argv[3] && !process.argv[3].startsWith("--")
       ? process.argv[3]
       : undefined;
     const worktreePath = explicitPath || process.cwd();
-    const tmuxTarget =
-      process.argv.find((a) => a.startsWith("--tmux="))?.split("=")[1] ||
-      detectAgentPane();
-    await runReview(worktreePath, tmuxTarget);
+    await runReview(worktreePath);
   } else {
     startSession();
   }

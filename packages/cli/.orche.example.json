@@ -1,4 +1,5 @@
 {
+  "multiplexer": "auto",
   "layout": {
     "direction": "horizontal",
     "panes": [

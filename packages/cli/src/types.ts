@@ -12,7 +12,10 @@ export interface SplitConfig {
   size?: number;
 }
 
+export type MultiplexerType = "tmux" | "cmux" | "auto";
+
 export interface AgentsConfig {
+  multiplexer?: MultiplexerType;
   layout: PaneConfig | SplitConfig;
 }
 
