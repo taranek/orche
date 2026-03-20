@@ -10,6 +10,7 @@ import { getLanguageExtension } from './languageExtension';
 import { baseExtensions } from './baseExtensions';
 import { buildDiffDecos, computeSpacers, trimChunkEdges, drawFlowConnections, RevertGutterMarker, updateScrollbarMarkers, type ChunkType } from './diffUtils';
 import { InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, InputBlockWidget } from './reviewComponents';
+import { useDiffSync } from './useDiffSync';
 
 export function SplitDiffEditorInner({
   original,
@@ -547,6 +548,8 @@ export function SplitDiffEditorInner({
     onChangeRef.current?.(b.state.doc.toString());
   }, [applyDiff]);
   handleRejectChunkRef.current = handleRejectChunk;
+
+  useDiffSync({ editorARef, editorBRef, original, modified, applyDiff });
 
   return (
     <div ref={containerRef} className="h-full w-full flex">

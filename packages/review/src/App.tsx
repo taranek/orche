@@ -24,7 +24,6 @@ import { SubmittedScreen } from './components/SubmittedScreen'
 
 function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange: (name: PaletteName) => void }) {
   const [changes, setChanges] = useState<FileChange[]>([])
-  const [contentKey, setContentKey] = useState(0)
   const selectedFile = useFileStore((s) => s.selectedFile)
   const selectFile = useFileStore((s) => s.selectFile)
   const [original, setOriginal] = useState('')
@@ -74,16 +73,8 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
         window.review.read(selectedFile),
       ]).then(([orig, mod]) => {
         if (cancelled) return
-        const newOriginal = orig ?? ''
-        setOriginal((prev) => {
-          setModified((prevMod) => {
-            if (prev !== newOriginal || prevMod !== mod) {
-              setContentKey((k) => k + 1)
-            }
-            return mod
-          })
-          return newOriginal
-        })
+        setOriginal(orig ?? '')
+        setModified(mod)
       }).catch(err => {
         console.error('Failed to load file:', selectedFile, err)
       })
@@ -201,7 +192,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
           <div className="absolute inset-0">
             {selectedFile && (original !== '' || modified !== '') ? (
               <CodeDiffEditor
-                key={`${selectedFile}-${contentKey}`}
+                key={selectedFile}
                 original={original}
                 modified={modified}
                 mode="split"
