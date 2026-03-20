@@ -64,27 +64,9 @@ export function createWorktree(repoPath: string, name: string): WorktreeInfo {
   });
 
   symlinkNodeModules(repoPath, worktreePath);
-  symlinkEnvFiles(repoPath, worktreePath);
 
   console.log(`  worktree: ${worktreePath} (${branchName})`);
   return { worktreePath, branchName };
-}
-
-function symlinkEnvFiles(repoPath: string, worktreePath: string): void {
-  let entries;
-  try {
-    entries = readdirSync(repoPath, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.startsWith(".env")) continue;
-    const src = path.join(repoPath, entry.name);
-    const dest = path.join(worktreePath, entry.name);
-    if (!existsSync(dest)) {
-      symlinkSync(src, dest);
-    }
-  }
 }
 
 function symlinkNodeModules(repoPath: string, worktreePath: string): void {
