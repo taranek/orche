@@ -12,7 +12,7 @@ const kbdClass = 'px-1.5 py-[5px] rounded-[4px] text-[10px] font-medium font-[in
 // Inline comment displayed via React portal
 export function InlineComment({ comment, onDelete }: { comment: ExistingComment; onDelete: (id: string) => void }) {
   return (
-    <div className={`group flex flex-col h-full ${cardClass}`}>
+    <div className={`group flex flex-col h-full m-1 ${cardClass}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b-[0.5px] border-edge">
         <div className="flex items-center gap-1.5">

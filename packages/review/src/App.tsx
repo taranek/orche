@@ -61,6 +61,14 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
   const fileTree = useMemo(() => buildFileTree(changes), [changes])
 
+  const commentCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const c of pendingComments) {
+      counts[c.filePath] = (counts[c.filePath] ?? 0) + 1
+    }
+    return counts
+  }, [pendingComments])
+
   useEffect(() => {
     window.review.getChanges().then(setChanges)
     window.review.getBranch().then(setBranch)
@@ -106,7 +114,23 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
       {}
     )
 
+    // Read file contents to include code context with each comment
+    const fileContents: Record<string, string[]> = {}
+    for (const file of Object.keys(grouped)) {
+      try {
+        const content = await window.review.read(file)
+        fileContents[file] = content.split('\n')
+      } catch {
+        // If we can't read the file, we'll skip code context
+      }
+    }
+
+    const CONTEXT_LINES = 5
+
     let markdown = 'Code Review:\n'
+    markdown += '\nRead each file mentioned below in full before making changes. '
+    markdown += 'The review comments reference specific lines but may require changes to surrounding code. '
+    markdown += 'Understand the broader context before editing.\n'
 
     if (reverted.size > 0) {
       markdown += '\n## Reverted changes\nThe following files had changes reverted during review — do not re-apply them:\n'
@@ -117,11 +141,27 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
     for (const [file, fileComments] of Object.entries(grouped)) {
       markdown += `\n## ${file}\n`
+      const lines = fileContents[file]
+
       for (const c of fileComments.sort((a, b) => a.lineNumber - b.lineNumber)) {
-        markdown += `- Line ${c.lineNumber}: ${c.text}\n`
+        markdown += `\n### Comment on line ${c.lineNumber}\n`
+        markdown += `${c.text}\n`
+
+        if (lines) {
+          const start = Math.max(0, c.lineNumber - CONTEXT_LINES - 1)
+          const end = Math.min(lines.length, c.lineNumber + CONTEXT_LINES)
+          const snippet = lines.slice(start, end)
+            .map((line, i) => {
+              const lineNum = start + i + 1
+              const marker = lineNum === c.lineNumber ? '>' : ' '
+              return `${marker} ${lineNum} | ${line}`
+            })
+            .join('\n')
+          markdown += `\n\`\`\`\n${snippet}\n\`\`\`\n`
+        }
       }
     }
-    markdown += '\nPlease address these review comments.\n'
+    markdown += '\nPlease read each referenced file in full and address these review comments.\n'
 
     await window.review.submit(markdown)
 
@@ -159,10 +199,13 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
         <div className="flex-1 min-h-0">
           {sidePanel === 'files' && (
-            <FileTreePanel tree={fileTree} onFileClick={(path) => diffViewRef.current?.scrollToFile(path)} />
+            <FileTreePanel tree={fileTree} onFileClick={(path) => diffViewRef.current?.scrollToFile(path)} commentCounts={commentCounts} />
           )}
           {sidePanel === 'comments' && (
-            <CommentsPanel comments={pendingComments} />
+            <CommentsPanel
+              comments={pendingComments}
+              onCommentClick={(filePath) => diffViewRef.current?.scrollToFile(filePath)}
+            />
           )}
           {sidePanel === 'theme' && (
             <ThemePanel theme={theme} onThemeChange={onThemeChange} />

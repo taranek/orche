@@ -369,6 +369,9 @@ const FileDiffBlock = forwardRef<HTMLDivElement, FileDiffBlockProps>(
             fill: currentColor;
             transition: transform 0.12s ease, box-shadow 0.12s ease;
           }
+          [data-line-annotation] {
+            border-left: 3px solid var(--accent);
+          }
           [data-utility-button]:hover {
             transform: scale(1.15);
             box-shadow: 0 0 0 3px color-mix(in oklch, var(--diffs-addition-base) 30%, transparent);

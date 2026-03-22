@@ -7,10 +7,12 @@ function FileTreeItem({
   node,
   depth = 0,
   onFileClick,
+  commentCounts,
 }: {
   node: FileTreeNode
   depth?: number
   onFileClick?: (path: string) => void
+  commentCounts?: Record<string, number>
 }) {
   const [isExpanded, setIsExpanded] = useState(true)
   const selectedFile = useFileStore((s) => s.selectedFile)
@@ -44,6 +46,7 @@ function FileTreeItem({
                 node={child}
                 depth={depth + 1}
                 onFileClick={onFileClick}
+                commentCounts={commentCounts}
               />
             ))}
           </div>
@@ -72,12 +75,17 @@ function FileTreeItem({
         <span className="w-[8px]" />
       )}
       <File size={12} className="text-fg-secondary/60 shrink-0" strokeWidth={1.2} />
-      <span className="truncate">{node.name}</span>
+      <span className="truncate flex-1">{node.name}</span>
+      {(commentCounts?.[node.path] ?? 0) > 0 && (
+        <span className="shrink-0 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-accent/15 text-accent text-[9px] font-semibold">
+          {commentCounts![node.path]}
+        </span>
+      )}
     </button>
   )
 }
 
-export function FileTreePanel({ tree, onFileClick }: { tree: FileTreeNode[]; onFileClick?: (path: string) => void }) {
+export function FileTreePanel({ tree, onFileClick, commentCounts }: { tree: FileTreeNode[]; onFileClick?: (path: string) => void; commentCounts?: Record<string, number> }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-1 pb-3 pt-1">
@@ -86,6 +94,7 @@ export function FileTreePanel({ tree, onFileClick }: { tree: FileTreeNode[]; onF
             key={node.path}
             node={node}
             onFileClick={onFileClick}
+            commentCounts={commentCounts}
           />
         ))}
       </div>
