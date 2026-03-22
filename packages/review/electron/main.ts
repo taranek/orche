@@ -113,13 +113,18 @@ function startWatching() {
 
   let firstEmit = true
   const emitChanges = async () => {
-    if (!win || win.isDestroyed()) return
-    const changes = await getChangedFiles(worktreePath)
-    if (firstEmit) {
-      console.log('[review] changed files:', changes.map(c => `${c.status[0]} ${c.path}`))
-      firstEmit = false
+    try {
+      if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
+      const changes = await getChangedFiles(worktreePath)
+      if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
+      if (firstEmit) {
+        console.log('[review] changed files:', changes.map(c => `${c.status[0]} ${c.path}`))
+        firstEmit = false
+      }
+      win.webContents.send('files:changed', { changes })
+    } catch {
+      // Render frame may be disposed during reload/crash — ignore
     }
-    win.webContents.send('files:changed', { changes })
   }
 
   watcher = chokidar.watch(worktreePath, {

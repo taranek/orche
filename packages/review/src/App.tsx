@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   ThemeProvider,
-  CodeDiffEditor,
   useReviewStore,
+  useTheme,
   type ExistingComment,
   type PaletteName,
 } from '@orche/shared'
@@ -17,21 +17,22 @@ import { IconRail } from './components/IconRail'
 import { FileTreePanel } from './components/FileTreePanel'
 import { CommentsPanel } from './components/CommentsPanel'
 import { ThemePanel } from './components/ThemePanel'
-import { TabBar } from './components/TabBar'
 import { PanelHeader } from './components/PanelHeader'
 import { StatusBar } from './components/StatusBar'
 import { SubmittedScreen } from './components/SubmittedScreen'
+import { PierreDiffView, type PierreDiffViewHandle } from './components/PierreDiffView'
 
 function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange: (name: PaletteName) => void }) {
   const [changes, setChanges] = useState<FileChange[]>([])
   const selectedFile = useFileStore((s) => s.selectedFile)
   const selectFile = useFileStore((s) => s.selectFile)
-  const [original, setOriginal] = useState('')
-  const [modified, setModified] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
   const revertedFiles = useRef(new Set<string>())
+  const diffViewRef = useRef<PierreDiffViewHandle>(null)
+
+  const { palette } = useTheme()
 
   const {
     addComment,
@@ -44,9 +45,19 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const pendingComments = (commentsByAgent[REVIEW_ID] ?? []).filter(
     c => c.status === 'pending'
   )
-  const commentsForFile: ExistingComment[] = pendingComments
-    .filter(c => c.filePath === selectedFile)
-    .map(c => ({ id: c.id, lineNumber: c.lineNumber, text: c.text }))
+
+  // Group comments by file for PierreDiffView
+  const commentsByFile = useMemo(() => {
+    const grouped: Record<string, ExistingComment[]> = {}
+    for (const c of pendingComments) {
+      ;(grouped[c.filePath] ??= []).push({
+        id: c.id,
+        lineNumber: c.lineNumber,
+        text: c.text,
+      })
+    }
+    return grouped
+  }, [pendingComments])
 
   const fileTree = useMemo(() => buildFileTree(changes), [changes])
 
@@ -56,49 +67,24 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     return window.review.onFilesChanged(setChanges)
   }, [])
 
-  useEffect(() => {
-    if (!selectedFile && changes.length > 0) {
-      selectFile(changes[0].path)
-    }
-  }, [changes, selectedFile])
-
-  // Reload content when file changes on disk
-  useEffect(() => {
-    if (!selectedFile) return
-    let cancelled = false
-
-    const loadContent = () => {
-      Promise.all([
-        window.review.readOriginal(selectedFile),
-        window.review.read(selectedFile),
-      ]).then(([orig, mod]) => {
-        if (cancelled) return
-        setOriginal(orig ?? '')
-        setModified(mod)
-      }).catch(err => {
-        console.error('Failed to load file:', selectedFile, err)
-      })
-    }
-
-    loadContent()
-    return () => { cancelled = true }
-  }, [selectedFile, changes])
+  const activeFile = selectedFile ?? (changes.length > 0
+    ? changes.reduce((a, b) => a.path.localeCompare(b.path) <= 0 ? a : b).path
+    : null
+  )
 
   const handleChange = useCallback(
-    (content: string) => {
-      if (!selectedFile) return
-      revertedFiles.current.add(selectedFile)
-      window.review.write(selectedFile, content)
+    (filePath: string, content: string) => {
+      revertedFiles.current.add(filePath)
+      window.review.write(filePath, content)
     },
-    [selectedFile]
+    []
   )
 
   const handleComment = useCallback(
-    (line: number, text: string) => {
-      if (!selectedFile) return
-      addComment(REVIEW_ID, selectedFile, line, text)
+    (filePath: string, line: number, text: string) => {
+      addComment(REVIEW_ID, filePath, line, text)
     },
-    [selectedFile, addComment]
+    [addComment]
   )
 
   const handleDeleteComment = useCallback(
@@ -138,6 +124,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     markdown += '\nPlease address these review comments.\n'
 
     await window.review.submit(markdown)
+
     clearSubmitted(REVIEW_ID)
     setSubmitted(true)
     setTimeout(() => window.review.quit(), 1000)
@@ -172,7 +159,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
         <div className="flex-1 min-h-0">
           {sidePanel === 'files' && (
-            <FileTreePanel tree={fileTree} />
+            <FileTreePanel tree={fileTree} onFileClick={(path) => diffViewRef.current?.scrollToFile(path)} />
           )}
           {sidePanel === 'comments' && (
             <CommentsPanel comments={pendingComments} />
@@ -183,31 +170,22 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
         </div>
       </div>
 
-      {/* Main editor area */}
+      {/* Main diff area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <TabBar files={changes} />
-
-        {/* Diff viewer */}
+        {/* Diff viewer — virtualized multi-file scroll */}
         <div className="flex-1 min-h-0 relative bg-base overflow-hidden">
           <div className="absolute inset-0">
-            {selectedFile && (original !== '' || modified !== '') ? (
-              <CodeDiffEditor
-                key={selectedFile}
-                original={original}
-                modified={modified}
-                mode="split"
-                filePath={selectedFile}
-                reviewMode={true}
-                onChange={handleChange}
-                existingComments={commentsForFile}
-                onComment={handleComment}
-                onDeleteComment={handleDeleteComment}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center text-fg-secondary text-sm">
-                Select a file to review
-              </div>
-            )}
+            <PierreDiffView
+              ref={diffViewRef}
+              changes={changes}
+              commentsByFile={commentsByFile}
+              onComment={handleComment}
+              onDeleteComment={handleDeleteComment}
+              onChange={handleChange}
+              activeFile={activeFile}
+              onActiveFileChange={selectFile}
+              theme={palette.mode}
+            />
           </div>
         </div>
 

@@ -6,9 +6,11 @@ import type { FileTreeNode } from '../types'
 function FileTreeItem({
   node,
   depth = 0,
+  onFileClick,
 }: {
   node: FileTreeNode
   depth?: number
+  onFileClick?: (path: string) => void
 }) {
   const [isExpanded, setIsExpanded] = useState(true)
   const selectedFile = useFileStore((s) => s.selectedFile)
@@ -41,6 +43,7 @@ function FileTreeItem({
                 key={child.path}
                 node={child}
                 depth={depth + 1}
+                onFileClick={onFileClick}
               />
             ))}
           </div>
@@ -51,7 +54,7 @@ function FileTreeItem({
 
   return (
     <button
-      onClick={() => selectFile(node.path)}
+      onClick={() => { selectFile(node.path); onFileClick?.(node.path) }}
       className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-[12px] font-mono rounded border-none cursor-pointer font-[inherit] transition-colors ${
         isSelected
           ? 'bg-accent-dim text-fg'
@@ -74,7 +77,7 @@ function FileTreeItem({
   )
 }
 
-export function FileTreePanel({ tree }: { tree: FileTreeNode[] }) {
+export function FileTreePanel({ tree, onFileClick }: { tree: FileTreeNode[]; onFileClick?: (path: string) => void }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-1 pb-3 pt-1">
@@ -82,6 +85,7 @@ export function FileTreePanel({ tree }: { tree: FileTreeNode[] }) {
           <FileTreeItem
             key={node.path}
             node={node}
+            onFileClick={onFileClick}
           />
         ))}
       </div>

@@ -16,5 +16,8 @@
     "release:cli": "npx tsx scripts/release-cli.ts",
     "release:review": "npx tsx scripts/release-review.ts",
     "release": "npx tsx scripts/release-all.ts"
+  },
+  "dependencies": {
+    "@pierre/diffs": "^1.1.3"
   }
 }
