@@ -345,7 +345,7 @@ const FileDiffBlock = forwardRef<HTMLDivElement, FileDiffBlockProps>(
         theme,
         collapsed: isCollapsed,
         hunkSeparators: 'line-info' as const,
-        expandUnchanged: true,
+        expandUnchanged: false,
         lineHoverHighlight: 'both' as const,
         enableGutterUtility: true,
         unsafeCSS: `
