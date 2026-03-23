@@ -26,7 +26,7 @@ const tmuxTarget = process.argv.find(a => a.startsWith('--tmux='))?.split('=')[1
 const cmuxSurface = process.argv.find(a => a.startsWith('--surface='))?.split('=')[1]
 
 // Read session.json for pane targets (written by orche CLI at session creation)
-interface SessionInfo { multiplexer: string; panes: Record<string, string> }
+interface SessionInfo { multiplexer: string; panes: Record<string, string>; workspaceId?: string }
 let sessionInfo: SessionInfo | null = null
 try {
   const sessionPath = path.join(worktreePath ?? '', '.orche', 'session.json')
@@ -213,53 +213,31 @@ ipcMain.handle('files:write', async (_event, { filePath, content }: { filePath: 
 })
 
 // --- IPC: submit review ---
+// Electron cannot access the cmux socket (only processes started inside cmux can).
+// Write a .pending file that the CLI process (which IS inside cmux) watches and delivers.
 
 ipcMain.handle('review:submit', async (_event, { markdown }: { markdown: string }) => {
   console.log('[review] submit called')
-  console.log('[review] tmuxTarget:', tmuxTarget)
-  console.log('[review] cmuxSurface:', cmuxSurface)
-  console.log('[review] worktreePath:', worktreePath)
 
   if (!worktreePath) return { success: false, error: 'No worktree path' }
 
-  // Write review file
-  const reviewsDir = path.join(worktreePath, '..', '..', '.orche', 'reviews')
+  const worktreeName = path.basename(worktreePath)
+  const reviewsDir = path.join(worktreePath, '..', '..', 'reviews', worktreeName)
   await mkdir(reviewsDir, { recursive: true })
   const filename = `${Date.now()}.md`
   const reviewPath = path.join(reviewsDir, filename)
   await writeFile(reviewPath, markdown, 'utf-8')
   console.log('[review] saved to:', reviewPath)
 
-  // Paste review into the agent's pane
-  if (agentMultiplexer === 'tmux' && agentPaneId) {
-    console.log('[review] sending via tmux to:', agentPaneId)
-    try {
-      const tmpFile = path.join(reviewsDir, `.tmp-${Date.now()}`)
-      await writeFile(tmpFile, markdown, 'utf-8')
-      await execAsync(`tmux load-buffer "${tmpFile}"`)
-      await execAsync(`tmux paste-buffer -t "${agentPaneId}"`)
-      await execAsync(`tmux send-keys -t "${agentPaneId}" Enter`)
-      await import('node:fs').then(fs => fs.promises.unlink(tmpFile)).catch(() => {})
-      console.log('[review] tmux paste success')
-    } catch (err) {
-      console.error('[review] tmux paste failed:', err)
-    }
-  } else if (agentMultiplexer === 'cmux' && agentPaneId) {
-    console.log('[review] sending via cmux to surface:', agentPaneId)
-    try {
-      const tmpFile = path.join(reviewsDir, `.tmp-${Date.now()}`)
-      await writeFile(tmpFile, markdown, 'utf-8')
-      await execAsync(`cmux set-buffer --name orche-review "$(cat '${tmpFile}')"`)
-      await execAsync(`cmux paste-buffer --name orche-review --surface ${agentPaneId}`)
-      await execAsync(`cmux send-key --surface ${agentPaneId} enter`)
-      await import('node:fs').then(fs => fs.promises.unlink(tmpFile)).catch(() => {})
-      console.log('[review] cmux paste success')
-    } catch (err) {
-      console.error('[review] cmux paste failed:', err)
-    }
-  } else {
-    console.log('[review] no target — review saved to file only')
-  }
+  // Write a .pending file for the CLI watcher to pick up
+  const pendingPath = path.join(reviewsDir, `${filename}.pending`)
+  await writeFile(pendingPath, JSON.stringify({
+    reviewPath,
+    multiplexer: agentMultiplexer,
+    paneId: agentPaneId,
+    workspaceId: sessionInfo?.workspaceId,
+  }), 'utf-8')
+  console.log('[review] pending file written:', pendingPath)
 
   return { success: true, path: reviewPath }
 })

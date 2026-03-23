@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync } from "node:fs";
-import { execSync, spawn } from "node:child_process";
+import { readFileSync, existsSync, watch, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
 import { getMultiplexer } from "./multiplexer.js";
@@ -34,10 +34,57 @@ function loadConfig(cwd: string): AgentsConfig {
   return JSON.parse(raw) as AgentsConfig;
 }
 
+function deliverReview(pendingPath: string): void {
+  try {
+    const pending = JSON.parse(readFileSync(pendingPath, "utf-8"));
+    const { reviewPath, multiplexer, paneId, workspaceId } = pending;
+    const markdown = readFileSync(reviewPath, "utf-8");
+
+    if (multiplexer === "tmux" && paneId) {
+      // Use load-buffer/paste-buffer instead of send-keys to safely handle
+      // multi-line markdown with special characters
+      const tmpFile = pendingPath + ".tmp";
+      writeFileSync(tmpFile, markdown);
+      execFileSync("tmux", ["load-buffer", tmpFile]);
+      execFileSync("tmux", ["paste-buffer", "-t", paneId]);
+      execFileSync("tmux", ["send-keys", "-t", paneId, "Enter"]);
+      try { unlinkSync(tmpFile); } catch {}
+    } else if (multiplexer === "cmux" && paneId) {
+      const escaped = markdown.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
+      execFileSync("cmux", ["send", "--surface", paneId, ...(workspaceId ? ["--workspace", workspaceId] : []), "--", escaped]);
+      execFileSync("cmux", ["send-key", "--surface", paneId, ...(workspaceId ? ["--workspace", workspaceId] : []), "enter"]);
+    }
+
+    try { unlinkSync(pendingPath); } catch {}
+    console.log("[review] delivered review to agent");
+  } catch (err: any) {
+    console.error("[review] delivery failed:", err?.message ?? err);
+  }
+}
+
 async function runReview(worktreePath: string): Promise<void> {
-  const args = ["--worktree=" + path.resolve(worktreePath)];
+  const resolvedPath = path.resolve(worktreePath);
+  const args = ["--worktree=" + resolvedPath];
 
   console.log(`opening review for ${worktreePath}...`);
+
+  // Watch for .pending files from the Electron app and deliver them
+  // (Electron can't access the cmux socket — only CLI processes can)
+  const repoRoot = getRepoRoot(resolvedPath);
+  const worktreeName = path.basename(resolvedPath);
+  const reviewsDir = path.join(repoRoot, ".orche", "reviews", worktreeName);
+  mkdirSync(reviewsDir, { recursive: true });
+
+  // CLI stays alive to watch for .pending files and deliver them via cmux/tmux
+  // (Electron can't access the cmux socket — only processes started inside cmux can)
+  const watcher = watch(reviewsDir, (event, filename) => {
+    if (event === "rename" && filename?.endsWith(".pending")) {
+      const pendingPath = path.join(reviewsDir, filename);
+      deliverReview(pendingPath);
+      watcher.close();
+      process.exit(0);
+    }
+  });
 
   // Dev mode: launch electron from local monorepo
   const cliDir = path.dirname(new URL(import.meta.url).pathname);
@@ -48,22 +95,18 @@ async function runReview(worktreePath: string): Promise<void> {
   if (devReviewPath) {
     const electronBin = path.join(devReviewPath, "node_modules/.bin/electron");
     if (debug) console.error(`[review] launching: ${electronBin} ${[devReviewPath, ...args].join(" ")}`);
-    const child = spawn(electronBin, [devReviewPath, ...args], {
-      stdio: debug ? ["ignore", "inherit", "inherit"] : "ignore",
-      detached: !debug,
+    spawn(electronBin, [devReviewPath, ...args], {
+      stdio: ["ignore", "inherit", "inherit"],
       env: { ...process.env, VITE_DEV_SERVER_URL: undefined },
     });
-    if (!debug) child.unref();
     return;
   }
 
   const binaryPath = await getReviewBinaryPath();
   if (debug) console.error(`[review] launching: ${binaryPath} ${args.join(" ")}`);
-  const child = spawn(binaryPath, args, {
-    stdio: debug ? ["ignore", "inherit", "inherit"] : "ignore",
-    detached: !debug,
+  spawn(binaryPath, args, {
+    stdio: ["ignore", "inherit", "inherit"],
   });
-  child.unref();
 }
 
 function getRepoRoot(cwd: string): string {

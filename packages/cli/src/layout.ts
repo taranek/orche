@@ -6,6 +6,7 @@ import type { Multiplexer } from "./multiplexer.js";
 export interface SessionInfo {
   multiplexer: string;
   panes: Record<string, string>; // name → pane/surface ID
+  workspaceId?: string;
 }
 
 /**
@@ -92,6 +93,7 @@ function saveSessionInfo(
 ): void {
   const orcheDir = path.join(worktreePath, ".orche");
   mkdirSync(orcheDir, { recursive: true });
-  const info: SessionInfo = { multiplexer, panes };
+  const workspaceId = process.env.CMUX_WORKSPACE_ID || undefined;
+  const info: SessionInfo = { multiplexer, panes, workspaceId };
   writeFileSync(path.join(orcheDir, "session.json"), JSON.stringify(info, null, 2));
 }
