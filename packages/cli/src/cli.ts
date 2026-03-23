@@ -121,7 +121,7 @@ function getRepoRoot(cwd: string): string {
 function startSession(): void {
   const cwd = getRepoRoot(process.cwd());
   const repoName = path.basename(cwd);
-  const taskName = process.argv.slice(2).find((a) => !a.startsWith("--")) || "session";
+  const taskName = process.argv.slice(3).find((a) => !a.startsWith("--")) || "session";
 
   const config = loadConfig(cwd);
   const muxFlag: MultiplexerType | undefined =
@@ -155,12 +155,11 @@ function printUsage(): void {
 orche — orchestrate agents across git worktrees
 
 Usage:
-  orche <task>                Start a new session for <task>
+  orche start <task>         Start a new session for <task>
   orche review [path]        Open the review UI for a worktree
-    --tmux=<pane>            Send review back to a tmux pane
 
 Examples:
-  orche fix-auth             Create worktree + tmux session for "fix-auth"
+  orche start fix-auth       Create worktree + session for "fix-auth"
   orche review               Review changes in current directory
   orche review ./worktree    Review changes in a specific worktree
 
@@ -178,14 +177,17 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (subcommand === "review") {
+  if (subcommand === "start") {
+    startSession();
+  } else if (subcommand === "review") {
     const explicitPath = process.argv[3] && !process.argv[3].startsWith("--")
       ? process.argv[3]
       : undefined;
     const worktreePath = explicitPath || process.cwd();
     await runReview(worktreePath);
   } else {
-    startSession();
+    console.error(`Unknown command: ${subcommand}\nRun "orche --help" for usage.`);
+    process.exit(1);
   }
 }
 

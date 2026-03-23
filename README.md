@@ -4,12 +4,12 @@ Orchestrate coding agents across isolated git worktrees with a built-in code rev
 
 orche is two things:
 
-- **`orche <task>`** — spins up a tmux session with your agent, dev server, and any other tools you need, each running in an isolated git worktree so agents never step on each other.
+- **`orche start <task>`** — spins up a tmux session with your agent, dev server, and any other tools you need, each running in an isolated git worktree so agents never step on each other.
 - **`orche review`** — opens a desktop app to review the agent's changes, add line-level comments, and send feedback directly back into the agent's terminal.
 
 ### Typical workflow
 
-1. Run `orche fix-auth` — a tmux session opens with your agent (Claude, Codex, etc.), a dev server, and a spare terminal
+1. Run `orche start fix-auth` — a tmux session opens with your agent (Claude, Codex, etc.), a dev server, and a spare terminal
 2. The agent works on the task in its own worktree
 3. When it's done, either tell the agent to run `orche review` or trigger it yourself from the spare terminal
 4. Review the diff, leave comments, hit submit — feedback lands in the agent's pane
@@ -46,7 +46,7 @@ npm install -g @taranek/orche --registry=https://npm.pkg.github.com
 2. Start a session:
 
 ```bash
-orche fix-auth
+orche start fix-auth
 ```
 
 This will:
@@ -65,14 +65,14 @@ Opens the desktop review app for the current worktree.
 ## Usage
 
 ```
-orche <task>                Start a new session for <task>
+orche start <task>         Start a new session for <task>
 orche review [path]        Open the review UI for a worktree
 ```
 
 ### Examples
 
 ```bash
-orche fix-auth             # Create worktree + tmux session for "fix-auth"
+orche start fix-auth       # Create worktree + session for "fix-auth"
 orche review               # Review changes in current directory
 orche review ./worktree    # Review changes in a specific worktree
 ```
@@ -139,35 +139,34 @@ The app has three panels:
 
 ```
 ┌──────┬────────────┬──────────────────────────────────┐
-│      │            │  tab1.ts | tab2.ts | tab3.ts     │
-│ icon │   file     ├──────────────────────────────────┤
-│ rail │   tree     │                                  │
-│      │            │         diff editor              │
+│      │            │                                  │
+│ icon │   file     │    multi-file diff view           │
+│ rail │   tree     │    (virtualized scroll)           │
 │      │            │                                  │
 │      │            ├──────────────────────────────────┤
-│      │            │  main ← 3 files · 0 comments     │
+│      │            │  main ← 3 files · 2 comments     │
 └──────┴────────────┴──────────────────────────────────┘
 ```
 
 - **Icon rail** — switch between file tree, comments, and theme panels
 - **Side panel** — browse changed files (with `+`/`~`/`-` status indicators), view pending comments, or switch themes
-- **Editor** — split (side-by-side) or unified diff view with syntax highlighting for 15+ languages
+- **Diff viewer** — virtualized multi-file split diff with syntax highlighting, collapsible unchanged regions, and sticky file headers
 
 ### Reviewing workflow
 
 1. Open the review app with `orche review`
-2. Browse changed files in the file tree — the list updates in real time as the agent works
-3. Click any line in the diff to add a comment
-4. Use the revert button to undo specific chunks — changes are written back to disk
-5. Submit — your comments and reverts are saved as a markdown file in `.orche/reviews/` and, if a tmux target is set, pasted directly into the agent's pane
+2. Scroll through all changed files in a single view — the sidebar highlights the current file as you scroll
+3. Click any line in the diff to add a comment (or use the `+` gutter button on hover)
+4. Submit with `Cmd+Enter` (macOS) or `Ctrl+Enter` (Linux) — your comments are saved as a markdown file in `.orche/reviews/` and pasted directly into the agent's pane
 
-**Keyboard shortcuts in comment input:**
+**Keyboard shortcuts:**
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Submit comment |
-| `Shift+Enter` | Newline |
-| `Escape` | Cancel |
+| `Cmd/Ctrl+Enter` | Submit review |
+| `Enter` (in comment) | Submit comment |
+| `Shift+Enter` (in comment) | Newline |
+| `Escape` (in comment) | Cancel |
 
 ### Themes
 
