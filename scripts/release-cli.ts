@@ -55,5 +55,6 @@ execSync(`git tag ${tag}`, { stdio: "inherit" });
 console.log(`pushing ${tag}...`);
 execSync(`git push origin HEAD ${tag}`, { stdio: "inherit" });
 
-console.log(`\ndone — ${tag} pushed, GitHub Actions will publish to GitHub Packages`);
-console.log(`https://github.com/taranek/orche/actions`);
+console.log(`\ndone — ${tag} pushed, GitHub Actions will publish to npm`);
+console.log(`  https://github.com/taranek/orche/actions`);
+console.log(`  https://www.npmjs.com/package/@taranek/orche`);

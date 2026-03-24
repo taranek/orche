@@ -62,6 +62,6 @@ console.log("pushing...");
 execSync(`git push origin HEAD cli-v${versions.cli} review-v${versions.review}`, { stdio: "inherit" });
 
 console.log(`\ndone:`);
-console.log(`  cli    → GitHub Actions publishing @taranek/orche@${versions.cli}`);
+console.log(`  cli    → GitHub Actions publishing @taranek/orche@${versions.cli} to npm`);
 console.log(`  review → GitHub Actions building review-v${versions.review}`);
 console.log(`  https://github.com/taranek/orche/actions`);

@@ -12,6 +12,16 @@ import https from "node:https";
 
 const REPO = "taranek/orche";
 const TAG_PREFIX = "review-v";
+
+// Pin review binary version to the CLI version
+const CLI_VERSION = (() => {
+  try {
+    const pkgPath = new URL("../package.json", import.meta.url).pathname;
+    return JSON.parse(readFileSync(pkgPath, "utf-8")).version as string;
+  } catch {
+    return null;
+  }
+})();
 const ORCHE_DIR = path.join(
   process.env.HOME || process.env.USERPROFILE || "~",
   ".orche",
@@ -20,7 +30,6 @@ const ORCHE_DIR = path.join(
 const BIN_DIR = path.join(ORCHE_DIR, "bin");
 const VERSION_FILE = path.join(ORCHE_DIR, "version.json");
 const LOCK_FILE = path.join(ORCHE_DIR, ".downloading");
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface VersionInfo {
   version: string;
@@ -50,16 +59,6 @@ function readVersionInfo(): VersionInfo | null {
 function writeVersionInfo(info: VersionInfo): void {
   mkdirSync(ORCHE_DIR, { recursive: true });
   writeFileSync(VERSION_FILE, JSON.stringify(info, null, 2));
-}
-
-function compareSemver(a: string, b: string): number {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] || 0) - (pb[i] || 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
 }
 
 function getPlatformKey(): { platform: string; arch: string; ext: string } {
@@ -149,7 +148,7 @@ function download(url: string, dest: string): Promise<void> {
   });
 }
 
-async function findLatestRelease(): Promise<{
+async function findRelease(): Promise<{
   version: string;
   downloadUrl: string;
 } | null> {
@@ -157,22 +156,22 @@ async function findLatestRelease(): Promise<{
     `https://api.github.com/repos/${REPO}/releases`
   );
 
-  const reviewRelease = releases.find((r) =>
-    r.tag_name.startsWith(TAG_PREFIX)
-  );
+  // Find release matching CLI version, or fall back to latest review release
+  const targetTag = CLI_VERSION ? `${TAG_PREFIX}${CLI_VERSION}` : null;
+  const reviewRelease = targetTag
+    ? releases.find((r) => r.tag_name === targetTag)
+    : releases.find((r) => r.tag_name.startsWith(TAG_PREFIX));
+
   if (!reviewRelease) return null;
 
   const version = reviewRelease.tag_name.slice(TAG_PREFIX.length);
   const { platform, arch, ext } = getPlatformKey();
 
   // Match asset by platform and arch in filename
-  // electron-builder naming: orche-review-0.0.3-mac.zip (x64), orche-review-0.0.3-arm64-mac.zip (arm64)
-  // For x64, electron-builder omits the arch from the filename
   const asset = reviewRelease.assets.find((a) => {
     const name = a.name.toLowerCase();
     if (!name.includes(platform) || !name.endsWith(`.${ext}`) || name.includes("blockmap")) return false;
     if (arch === "arm64") return name.includes("arm64");
-    // x64: match files that have the platform but NOT arm64
     return !name.includes("arm64");
   });
 
@@ -254,53 +253,30 @@ function releaseLock(): void {
 export async function getReviewBinaryPath(): Promise<string> {
   const executablePath = getExecutablePath();
   const info = readVersionInfo();
-  const isInstalled = info && existsSync(executablePath);
+  const needsDownload = !info || !existsSync(executablePath)
+    || (CLI_VERSION && info.version !== CLI_VERSION);
 
-  if (!isInstalled) {
-    // First install
+  if (!needsDownload) return executablePath;
+
+  if (info && CLI_VERSION && info.version !== CLI_VERSION) {
+    console.log(`review app version mismatch (${info.version} → ${CLI_VERSION}), updating...`);
+  } else {
     console.log("review app not found, downloading...");
-    if (!acquireLock()) {
-      throw new Error(
-        "another download is in progress — try again in a moment"
-      );
-    }
-    try {
-      const release = await findLatestRelease();
-      if (!release) {
-        throw new Error(
-          "no review app release found — check https://github.com/taranek/orche/releases"
-        );
-      }
-      await downloadAndExtract(release.downloadUrl, release.version);
-    } finally {
-      releaseLock();
-    }
-    return executablePath;
   }
 
-  // Check for updates (throttled)
-  const lastChecked = new Date(info.lastCheckedAt).getTime();
-  if (Date.now() - lastChecked > CHECK_INTERVAL_MS) {
-    try {
-      const release = await findLatestRelease();
-      // Update lastCheckedAt regardless
-      writeVersionInfo({ ...info, lastCheckedAt: new Date().toISOString() });
-
-      if (release && compareSemver(release.version, info.version) > 0) {
-        console.log(
-          `updating review app: ${info.version} → ${release.version}`
-        );
-        if (acquireLock()) {
-          try {
-            await downloadAndExtract(release.downloadUrl, release.version);
-          } finally {
-            releaseLock();
-          }
-        }
-      }
-    } catch {
-      // Offline or API error — use cached version silently
+  if (!acquireLock()) {
+    throw new Error("another download is in progress — try again in a moment");
+  }
+  try {
+    const release = await findRelease();
+    if (!release) {
+      throw new Error(
+        "no review app release found — check https://github.com/taranek/orche/releases"
+      );
     }
+    await downloadAndExtract(release.downloadUrl, release.version);
+  } finally {
+    releaseLock();
   }
 
   return executablePath;
