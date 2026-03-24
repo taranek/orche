@@ -4,12 +4,12 @@ Orchestrate coding agents across isolated git worktrees with a built-in code rev
 
 orche is two things:
 
-- **`orche start <task>`** — spins up a tmux session with your agent, dev server, and any other tools you need, each running in an isolated git worktree so agents never step on each other.
+- **`orche start <task>`** — spins up a tmux/cmux session with your agent, dev server, and any other tools you need, each running in an isolated git worktree so agents never step on each other.
 - **`orche review`** — opens a desktop app to review the agent's changes, add line-level comments, and send feedback directly back into the agent's terminal.
 
 ### Typical workflow
 
-1. Run `orche start fix-auth` — a tmux session opens with your agent (Claude, Codex, etc.), a dev server, and a spare terminal
+1. Run `orche start fix-auth` — a session opens (tmux or cmux) with your agent (Claude, Codex, etc.), a dev server, and a spare terminal
 2. The agent works on the task in its own worktree
 3. When it's done, either tell the agent to run `orche review` or trigger it yourself from the spare terminal
 4. Review the diff, leave comments, hit submit — feedback lands in the agent's pane
@@ -18,7 +18,7 @@ orche is two things:
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18+)
-- [tmux](https://github.com/tmux/tmux) (`brew install tmux`)
+- [tmux](https://github.com/tmux/tmux) or [cmux](https://cmux.dev/) — terminal multiplexer for session management
 - [git](https://git-scm.com/)
 
 ## Installation
@@ -51,7 +51,7 @@ orche start fix-auth
 
 This will:
 - Create an isolated git worktree in `.orche/worktrees/`
-- Open a tmux session with your configured pane layout
+- Open a tmux/cmux session with your configured pane layout
 - Run the specified commands in each pane
 
 3. Review changes:
@@ -81,7 +81,7 @@ orche review ./worktree    # Review changes in a specific worktree
 
 ### `.orche.json`
 
-Defines the tmux pane layout for your session. Place it in your project root.
+Defines the pane layout for your session. Place it in your project root. Works with both tmux and cmux.
 
 ```json
 {
@@ -123,6 +123,19 @@ This produces:
 
 Layouts can be nested arbitrarily deep.
 
+### Multiplexer
+
+orche auto-detects whether you're running inside tmux or [cmux](https://cmux.dev/). You can also set it explicitly in your config:
+
+```json
+{
+  "multiplexer": "cmux",
+  "layout": { ... }
+}
+```
+
+Supported values: `"tmux"` (default) or `"cmux"`.
+
 ### `.orche.local.json`
 
 Same format as `.orche.json`. If present, it takes priority over `.orche.json`. This file is gitignored by default, so you can use it for personal overrides without affecting the team config.
@@ -131,7 +144,7 @@ Same format as `.orche.json`. If present, it takes priority over `.orche.json`. 
 
 The review app is a desktop application for reviewing agent-produced code changes before they land.
 
-Run `orche review` from inside a worktree (or pass a path) to open it. If you're in a tmux session, the review is automatically linked to the agent's pane — submitted feedback gets pasted straight into the terminal.
+Run `orche review` from inside a worktree (or pass a path) to open it. If you're in a tmux or cmux session, the review is automatically linked to the agent's pane — submitted feedback gets pasted straight into the terminal.
 
 ### Interface
 
