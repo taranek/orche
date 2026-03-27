@@ -8,7 +8,7 @@ import type { CodeDiffEditorProps } from './types';
 import { reviewCursorTheme, diffTheme } from './themes';
 import { getLanguageExtension } from './languageExtension';
 import { baseExtensions } from './baseExtensions';
-import { buildDiffDecos, computeSpacers, trimChunkEdges, drawFlowConnections, RevertGutterMarker, updateScrollbarMarkers, type ChunkType } from './diffUtils';
+import { buildDiffDecos, computeSpacers, buildLineChunks, drawFlowConnections, RevertGutterMarker, updateScrollbarMarkers, type ChunkType } from './diffUtils';
 import { InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, InputBlockWidget } from './reviewComponents';
 import { useDiffSync } from './useDiffSync';
 
@@ -105,33 +105,40 @@ export function SplitDiffEditorInner({
     const b = editorBRef.current;
     if (!a || !b) return;
 
-    const rawChunks = Chunk.build(docA, docB);
-    // Trim matching lines from chunk edges (Chunk.build is char-level, we want line-level)
-    const chunks = trimChunkEdges(docA, docB, rawChunks);
+    // Use line-level diff chunking (matches Pierre/git hunk boundaries)
+    const chunks = buildLineChunks(docA, docB);
     chunksRef.current = chunks;
 
     // Diff highlighting + gutter markers
     const resultA = buildDiffDecos(docA, chunks, 'a');
     const resultB = buildDiffDecos(docB, chunks, 'b');
 
-    // Alignment spacers
-    const lineHeight = a.defaultLineHeight;
-    const spacers = computeSpacers(docA, docB, chunks, lineHeight);
-
+    // Phase 1: Apply diff decorations (affects line wrapping) + clear old spacers
     a.dispatch({
       effects: [
         diffDecoCompartmentA.current.reconfigure(EditorView.decorations.of(resultA.decos)),
-        spacerCompartmentA.current.reconfigure(EditorView.decorations.of(spacers.a)),
+        spacerCompartmentA.current.reconfigure([]),
         gutterClassCompartmentA.current.reconfigure(gutterLineClass.of(resultA.gutterMarkers)),
       ],
     });
-    // Dispatch spacers + diff decos first so lineBlockAt includes spacer heights
     b.dispatch({
       effects: [
         diffDecoCompartmentB.current.reconfigure(EditorView.decorations.of(resultB.decos)),
-        spacerCompartmentB.current.reconfigure(EditorView.decorations.of(spacers.b)),
+        spacerCompartmentB.current.reconfigure([]),
         gutterClassCompartmentB.current.reconfigure(gutterLineClass.of(resultB.gutterMarkers)),
       ],
+    });
+
+    // Phase 2: After layout settles, measure actual rendered heights (with wrapping) and apply spacers
+    requestAnimationFrame(() => {
+      const aRef = editorARef.current;
+      const bRef = editorBRef.current;
+      if (!aRef || !bRef) return;
+      const measuredLine = aRef.dom.querySelector('.cm-line');
+      const lineHeight = measuredLine ? measuredLine.getBoundingClientRect().height : aRef.defaultLineHeight;
+      const spacers = computeSpacers(aRef.state.doc, bRef.state.doc, chunks, lineHeight, aRef, bRef);
+      aRef.dispatch({ effects: [spacerCompartmentA.current.reconfigure(EditorView.decorations.of(spacers.a))] });
+      bRef.dispatch({ effects: [spacerCompartmentB.current.reconfigure(EditorView.decorations.of(spacers.b))] });
     });
 
     // Build revert gutter markers AFTER spacers are applied

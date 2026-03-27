@@ -2,6 +2,150 @@ import { EditorView, Decoration, type DecorationSet, WidgetType, GutterMarker } 
 import { Text, RangeSetBuilder, RangeSet } from '@codemirror/state';
 import { Chunk } from '@codemirror/merge';
 
+// --- Line-level diff chunking (matching Pierre/git hunk boundaries) ---
+
+/**
+ * Build line-level chunks using longest common subsequence.
+ * Produces chunk boundaries aligned to full lines, unlike Chunk.build which is char-level.
+ * This gives hunk boundaries matching git diff / Pierre diffs.
+ */
+export function buildLineChunks(docA: Text, docB: Text): readonly InstanceType<typeof Chunk>[] {
+  const linesA: string[] = [];
+  const linesB: string[] = [];
+  for (let i = 1; i <= docA.lines; i++) linesA.push(docA.line(i).text);
+  for (let i = 1; i <= docB.lines; i++) linesB.push(docB.line(i).text);
+
+  // Myers diff: find edit script
+  const edits = myersDiff(linesA, linesB);
+
+  // Convert edit ranges to Chunk-compatible objects (character offsets)
+  const chunks: Array<{ fromA: number; toA: number; fromB: number; toB: number; changes: any[] }> = [];
+  for (const edit of edits) {
+    const fromA = edit.startA > 0 ? docA.line(edit.startA + 1).from : 0;
+    const toA = edit.endA > 0 ? docA.line(Math.min(edit.endA, docA.lines)).to + 1 : 0;
+    const fromB = edit.startB > 0 ? docB.line(edit.startB + 1).from : 0;
+    const toB = edit.endB > 0 ? docB.line(Math.min(edit.endB, docB.lines)).to + 1 : 0;
+
+    // Clamp to doc length
+    const clampedToA = Math.min(toA, docA.length + 1);
+    const clampedToB = Math.min(toB, docB.length + 1);
+
+    chunks.push({
+      fromA: Math.min(fromA, docA.length),
+      toA: Math.min(clampedToA, docA.length),
+      fromB: Math.min(fromB, docB.length),
+      toB: Math.min(clampedToB, docB.length),
+      changes: [], // inline changes computed separately by buildDiffDecos
+    });
+  }
+
+  // Use Chunk.build for inline changes, then merge our line boundaries with their inline data
+  const charChunks = Chunk.build(docA, docB);
+
+  // Overlay char-level inline changes onto our line-level chunks
+  for (const lc of chunks) {
+    for (const cc of charChunks) {
+      // Check if char chunk overlaps with this line chunk
+      if (cc.toA > lc.fromA && cc.fromA < lc.toA && cc.toB > lc.fromB && cc.fromB < lc.toB) {
+        for (const change of cc.changes) {
+          const absFromA = cc.fromA + change.fromA;
+          const absToA = cc.fromA + change.toA;
+          const absFromB = cc.fromB + change.fromB;
+          const absToB = cc.fromB + change.toB;
+          if (absFromA >= lc.fromA && absToA <= lc.toA && absFromB >= lc.fromB && absToB <= lc.toB) {
+            lc.changes.push({
+              fromA: absFromA - lc.fromA,
+              toA: absToA - lc.fromA,
+              fromB: absFromB - lc.fromB,
+              toB: absToB - lc.fromB,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Wrap as Chunk-compatible objects
+  return chunks.map(c => Object.assign(Object.create(Chunk.prototype), c));
+}
+
+interface EditRange {
+  startA: number; endA: number; // 0-based line indices
+  startB: number; endB: number;
+}
+
+/** Simple Myers diff on string arrays, returns edit ranges (groups of consecutive changes). */
+function myersDiff(a: string[], b: string[]): EditRange[] {
+  const n = a.length;
+  const m = b.length;
+
+  // LCS via standard DP approach for reasonable-sized files
+  // For very large files, this could be optimized with Myers' O(ND) algorithm
+  // but for typical code files (< 10k lines), this is fast enough
+  if (n + m > 20000) {
+    // Fallback: treat entire content as one change
+    if (n === 0 && m === 0) return [];
+    return [{ startA: 0, endA: n, startB: 0, endB: m }];
+  }
+
+  // Find matching lines using a hash map for efficiency
+  const matchB = new Map<string, number[]>();
+  for (let j = 0; j < m; j++) {
+    const arr = matchB.get(b[j]);
+    if (arr) arr.push(j);
+    else matchB.set(b[j], [j]);
+  }
+
+  // Patience-style: find LCS using longest increasing subsequence of unique matches
+  // Simplified: use standard LCS with O(NM) DP but with optimization for equal lines
+  const dp = new Uint16Array((n + 1) * (m + 1));
+  const W = m + 1;
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i * W + j] = dp[(i - 1) * W + (j - 1)] + 1;
+      } else {
+        dp[i * W + j] = Math.max(dp[(i - 1) * W + j], dp[i * W + (j - 1)]);
+      }
+    }
+  }
+
+  // Backtrack to find which lines match
+  const matchedA = new Set<number>();
+  const matchedB = new Set<number>();
+  let i = n, j = m;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) {
+      matchedA.add(i - 1);
+      matchedB.add(j - 1);
+      i--; j--;
+    } else if (dp[(i - 1) * W + j] >= dp[i * W + (j - 1)]) {
+      i--;
+    } else {
+      j--;
+    }
+  }
+
+  // Build edit ranges from unmatched lines
+  const edits: EditRange[] = [];
+  let ai = 0, bi = 0;
+  while (ai < n || bi < m) {
+    // Skip matched lines
+    while (ai < n && matchedA.has(ai) && bi < m && matchedB.has(bi)) {
+      ai++; bi++;
+    }
+    // Collect consecutive unmatched lines
+    const startA = ai, startB = bi;
+    while (ai < n && !matchedA.has(ai)) ai++;
+    while (bi < m && !matchedB.has(bi)) bi++;
+    if (startA < ai || startB < bi) {
+      edits.push({ startA, endA: ai, startB, endB: bi });
+    }
+  }
+
+  return edits;
+}
+
 // --- Spacer widget for alignment ---
 
 export class SpacerWidget extends WidgetType {
@@ -9,7 +153,7 @@ export class SpacerWidget extends WidgetType {
   toDOM() {
     const el = document.createElement('div');
     el.style.height = `${this.height}px`;
-    if (this.className) el.className = this.className;
+    el.className = `cm-diff-spacer ${this.className ?? ''}`.trim();
     return el;
   }
   eq(other: SpacerWidget) { return this.height === other.height && this.className === other.className; }
@@ -114,40 +258,50 @@ export function computeSpacers(
   docA: Text,
   docB: Text,
   chunks: readonly InstanceType<typeof Chunk>[],
-  lineHeight: number
+  lineHeight: number,
+  editorA?: EditorView,
+  editorB?: EditorView,
 ): { a: DecorationSet; b: DecorationSet } {
   const spacersA: Array<{ pos: number; height: number; className?: string }> = [];
   const spacersB: Array<{ pos: number; height: number; className?: string }> = [];
+
+  // Snap lineHeight to nearest integer to avoid fractional drift
+  const lh = Math.round(lineHeight);
+
+  // Measure actual rendered height of a chunk range using lineBlockAt (accounts for wrapping)
+  const measureHeight = (editor: EditorView | undefined, doc: Text, from: number, to: number): number => {
+    if (!editor || from >= to) return 0;
+    const startBlock = editor.lineBlockAt(Math.min(from, doc.length));
+    const endBlock = editor.lineBlockAt(Math.min(to > 0 ? to - 1 : 0, doc.length));
+    return endBlock.top + endBlock.height - startBlock.top;
+  };
 
   for (let ci = 0; ci < chunks.length; ci++) {
     const chunk = chunks[ci];
     const aEmpty = chunk.fromA === chunk.toA;
     const bEmpty = chunk.fromB === chunk.toB;
 
-    let linesA = 0, linesB = 0;
-    if (!aEmpty) {
-      const s = docA.lineAt(chunk.fromA);
-      const e = docA.lineAt(Math.min(chunk.toA - 1, docA.length));
-      linesA = e.number - s.number + 1;
-    }
-    if (!bEmpty) {
-      const s = docB.lineAt(chunk.fromB);
-      const e = docB.lineAt(Math.min(chunk.toB - 1, docB.length));
-      linesB = e.number - s.number + 1;
-    }
+    // Use pixel-accurate measurement when editors are available
+    const heightA = aEmpty ? 0 : (editorA
+      ? measureHeight(editorA, docA, chunk.fromA, chunk.toA)
+      : (() => { const s = docA.lineAt(chunk.fromA); const e = docA.lineAt(Math.min(chunk.toA - 1, docA.length)); return (e.number - s.number + 1) * lh; })()
+    );
+    const heightB = bEmpty ? 0 : (editorB
+      ? measureHeight(editorB, docB, chunk.fromB, chunk.toB)
+      : (() => { const s = docB.lineAt(chunk.fromB); const e = docB.lineAt(Math.min(chunk.toB - 1, docB.length)); return (e.number - s.number + 1) * lh; })()
+    );
 
-    const diff = linesA - linesB;
+    const diff = heightA - heightB;
     if (diff > 0) {
-      // Place spacer after the last line of the B chunk
       const pos = bEmpty
         ? Math.min(chunk.fromB, docB.length)
         : docB.lineAt(Math.min(chunk.toB > 0 ? chunk.toB - 1 : 0, docB.length)).to;
-      spacersB.push({ pos, height: diff * lineHeight });
+      spacersB.push({ pos, height: diff });
     } else if (diff < 0) {
       const pos = aEmpty
         ? Math.min(chunk.fromA, docA.length)
         : docA.lineAt(Math.min(chunk.toA > 0 ? chunk.toA - 1 : 0, docA.length)).to;
-      spacersA.push({ pos, height: -diff * lineHeight });
+      spacersA.push({ pos, height: -diff });
     }
   }
 

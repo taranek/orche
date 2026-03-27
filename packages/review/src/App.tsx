@@ -21,6 +21,7 @@ import { PanelHeader } from './components/PanelHeader'
 import { StatusBar } from './components/StatusBar'
 import { SubmittedScreen } from './components/SubmittedScreen'
 import { PierreDiffView, type PierreDiffViewHandle } from './components/PierreDiffView'
+import { CodeMirrorDiffView, type CodeMirrorDiffViewHandle } from './components/CodeMirrorDiffView'
 
 function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange: (name: PaletteName) => void }) {
   const [changes, setChanges] = useState<FileChange[]>([])
@@ -29,8 +30,10 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const [submitted, setSubmitted] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
+  const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('pierre')
   const revertedFiles = useRef(new Set<string>())
   const diffViewRef = useRef<PierreDiffViewHandle>(null)
+  const cmDiffViewRef = useRef<CodeMirrorDiffViewHandle>(null)
 
   const { palette } = useTheme()
 
@@ -199,12 +202,12 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
         <div className="flex-1 min-h-0">
           {sidePanel === 'files' && (
-            <FileTreePanel tree={fileTree} onFileClick={(path) => diffViewRef.current?.scrollToFile(path)} commentCounts={commentCounts} />
+            <FileTreePanel tree={fileTree} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
           )}
           {sidePanel === 'comments' && (
             <CommentsPanel
               comments={pendingComments}
-              onCommentClick={(filePath) => diffViewRef.current?.scrollToFile(filePath)}
+              onCommentClick={(filePath) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(filePath)}
             />
           )}
           {sidePanel === 'theme' && (
@@ -215,20 +218,61 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
       {/* Main diff area */}
       <div className="flex-1 min-w-0 flex flex-col">
+        {/* Engine toggle */}
+        <div id="engine-toggle" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderBottom: '1px solid var(--edge)', background: 'var(--sidebar)' }}>
+          <span style={{ fontSize: 10, color: 'var(--fg-tertiary)', marginRight: 4 }}>Engine</span>
+          <button
+            aria-label="Use Pierre engine"
+            onClick={() => setDiffEngine('pierre')}
+            style={{
+              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
+              border: diffEngine === 'pierre' ? '1px solid var(--accent)' : '1px solid var(--edge)',
+              background: diffEngine === 'pierre' ? 'var(--accent)' : 'transparent',
+              color: diffEngine === 'pierre' ? 'var(--base)' : 'var(--fg-secondary)',
+              fontWeight: diffEngine === 'pierre' ? 600 : 400,
+            }}
+          >Pierre</button>
+          <button
+            aria-label="Use CodeMirror engine"
+            onClick={() => setDiffEngine('codemirror')}
+            style={{
+              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
+              border: diffEngine === 'codemirror' ? '1px solid var(--accent)' : '1px solid var(--edge)',
+              background: diffEngine === 'codemirror' ? 'var(--accent)' : 'transparent',
+              color: diffEngine === 'codemirror' ? 'var(--base)' : 'var(--fg-secondary)',
+              fontWeight: diffEngine === 'codemirror' ? 600 : 400,
+            }}
+          >CodeMirror</button>
+        </div>
+
         {/* Diff viewer — virtualized multi-file scroll */}
         <div className="flex-1 min-h-0 relative bg-base overflow-hidden">
           <div className="absolute inset-0">
-            <PierreDiffView
-              ref={diffViewRef}
-              changes={changes}
-              commentsByFile={commentsByFile}
-              onComment={handleComment}
-              onDeleteComment={handleDeleteComment}
-              onChange={handleChange}
-              activeFile={activeFile}
-              onActiveFileChange={selectFile}
-              theme={palette.mode}
-            />
+            {diffEngine === 'pierre' ? (
+              <PierreDiffView
+                ref={diffViewRef}
+                changes={changes}
+                commentsByFile={commentsByFile}
+                onComment={handleComment}
+                onDeleteComment={handleDeleteComment}
+                onChange={handleChange}
+                activeFile={activeFile}
+                onActiveFileChange={selectFile}
+                theme={palette.mode}
+              />
+            ) : (
+              <CodeMirrorDiffView
+                ref={cmDiffViewRef}
+                changes={changes}
+                commentsByFile={commentsByFile}
+                onComment={handleComment}
+                onDeleteComment={handleDeleteComment}
+                onChange={handleChange}
+                activeFile={activeFile}
+                onActiveFileChange={selectFile}
+                theme={palette.mode}
+              />
+            )}
           </div>
         </div>
 
