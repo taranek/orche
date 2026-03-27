@@ -65,6 +65,9 @@ export function SplitDiffEditorInner({
   const hoveredLineRef = useRef<number | null>(null);
   const hoverDecoCompartment = useRef(new Compartment());
   const diffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cache DOM-corrected spacers so ResizeObserver re-runs don't overwrite them
+  const correctedSpacersRef = useRef<{ a: import('@codemirror/view').DecorationSet; b: import('@codemirror/view').DecorationSet } | null>(null);
+  const lastDocKeyRef = useRef<string>('');
 
   // Update revert strip heights from DOM
   const updateStripHeights = useCallback(() => {
@@ -113,39 +116,54 @@ export function SplitDiffEditorInner({
     const resultA = buildDiffDecos(docA, chunks, 'a');
     const resultB = buildDiffDecos(docB, chunks, 'b');
 
-    // Phase 1: Apply diff decorations (which add cm-chunk-N classes) + initial line-count spacers
     const measuredLine = a.dom.querySelector('.cm-line');
     const lineHeight = measuredLine ? measuredLine.getBoundingClientRect().height : a.defaultLineHeight;
-    const initialSpacers = computeSpacers(docA, docB, chunks, lineHeight);
+
+    // Check if we have cached DOM-corrected spacers for the same document content
+    const docKey = `${docA.length}:${docB.length}:${docA.sliceString(0, 100)}`;
+    const hasCachedSpacers = correctedSpacersRef.current && lastDocKeyRef.current === docKey;
+
+    // Use cached DOM-corrected spacers if available, otherwise line-count spacers
+    const spacers = hasCachedSpacers
+      ? correctedSpacersRef.current!
+      : computeSpacers(docA, docB, chunks, lineHeight);
 
     a.dispatch({
       effects: [
         diffDecoCompartmentA.current.reconfigure(EditorView.decorations.of(resultA.decos)),
-        spacerCompartmentA.current.reconfigure(EditorView.decorations.of(initialSpacers.a)),
+        spacerCompartmentA.current.reconfigure(EditorView.decorations.of(spacers.a)),
         gutterClassCompartmentA.current.reconfigure(gutterLineClass.of(resultA.gutterMarkers)),
       ],
     });
     b.dispatch({
       effects: [
         diffDecoCompartmentB.current.reconfigure(EditorView.decorations.of(resultB.decos)),
-        spacerCompartmentB.current.reconfigure(EditorView.decorations.of(initialSpacers.b)),
+        spacerCompartmentB.current.reconfigure(EditorView.decorations.of(spacers.b)),
         gutterClassCompartmentB.current.reconfigure(gutterLineClass.of(resultB.gutterMarkers)),
       ],
     });
 
     // Phase 2: After layout, measure actual rendered chunk heights from DOM
-    // and correct spacers to account for line wrapping
-    requestAnimationFrame(() => {
-      const aRef = editorARef.current;
-      const bRef = editorBRef.current;
-      if (!aRef || !bRef) return;
-      const lh = Math.round(lineHeight);
-      const correctedSpacers = computeSpacersFromDOM(aRef, bRef, chunks, lh);
-      if (correctedSpacers) {
-        aRef.dispatch({ effects: [spacerCompartmentA.current.reconfigure(EditorView.decorations.of(correctedSpacers.a))] });
-        bRef.dispatch({ effects: [spacerCompartmentB.current.reconfigure(EditorView.decorations.of(correctedSpacers.b))] });
-      }
-    });
+    // and correct spacers to account for line wrapping. Cache the result.
+    if (!hasCachedSpacers) {
+      requestAnimationFrame(() => {
+        const aRef = editorARef.current;
+        const bRef = editorBRef.current;
+        if (!aRef || !bRef) return;
+        const lh = Math.round(lineHeight);
+        const corrected = computeSpacersFromDOM(aRef, bRef, chunks, lh);
+        if (corrected) {
+          correctedSpacersRef.current = corrected;
+          lastDocKeyRef.current = docKey;
+          aRef.dispatch({ effects: [spacerCompartmentA.current.reconfigure(EditorView.decorations.of(corrected.a))] });
+          bRef.dispatch({ effects: [spacerCompartmentB.current.reconfigure(EditorView.decorations.of(corrected.b))] });
+        } else {
+          // Line-count spacers were already correct — cache them
+          lastDocKeyRef.current = docKey;
+          correctedSpacersRef.current = spacers;
+        }
+      });
+    }
 
     // Build revert gutter markers AFTER spacers are applied
     const revertMarkers: Array<{ from: number; marker: RevertGutterMarker }> = [];

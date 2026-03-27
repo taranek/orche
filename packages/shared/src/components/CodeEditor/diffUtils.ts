@@ -287,16 +287,20 @@ export function computeSpacers(
     const heightB = linesB * lh;
 
     const diff = heightA - heightB;
+    // When one side is empty, buildDiffDecos adds an insertion/deletion-point decoration
+    // to an existing context line. If CSS hides that line (height:0), the spacer must
+    // compensate by adding 1 line of height.
+    const insertionPointCompensation = (bEmpty || aEmpty) ? lh : 0;
     if (diff > 0) {
       const pos = bEmpty
         ? Math.min(chunk.fromB, docB.length)
         : docB.lineAt(Math.min(chunk.toB > 0 ? chunk.toB - 1 : 0, docB.length)).to;
-      spacersB.push({ pos, height: diff });
+      spacersB.push({ pos, height: diff + (bEmpty ? insertionPointCompensation : 0) });
     } else if (diff < 0) {
       const pos = aEmpty
         ? Math.min(chunk.fromA, docA.length)
         : docA.lineAt(Math.min(chunk.toA > 0 ? chunk.toA - 1 : 0, docA.length)).to;
-      spacersA.push({ pos, height: -diff });
+      spacersA.push({ pos, height: -diff + (aEmpty ? insertionPointCompensation : 0) });
     }
   }
 
@@ -377,18 +381,21 @@ export function computeSpacersFromDOM(
 
     const diff = heightA - heightB;
     const lineDiff = linesA - linesB;
+    // Compensate for hidden insertion/deletion-point lines (CSS height:0)
+    const compensation = (bEmpty || aEmpty) ? lh : 0;
 
     if (diff > 0) {
       const pos = bEmpty
         ? Math.min(chunk.fromB, docB.length)
         : docB.lineAt(Math.min(chunk.toB > 0 ? chunk.toB - 1 : 0, docB.length)).to;
-      spacersB.push({ pos, height: diff });
-      if (diff !== lineDiff * lh) anyDifference = true;
+      const h = diff + (bEmpty ? compensation : 0);
+      spacersB.push({ pos, height: h });
+      if (h !== lineDiff * lh) anyDifference = true;
     } else if (diff < 0) {
       const pos = aEmpty
         ? Math.min(chunk.fromA, docA.length)
         : docA.lineAt(Math.min(chunk.toA > 0 ? chunk.toA - 1 : 0, docA.length)).to;
-      spacersA.push({ pos, height: -diff });
+      spacersA.push({ pos, height: -diff + (aEmpty ? compensation : 0) });
       if (-diff !== -lineDiff * lh) anyDifference = true;
     }
   }
