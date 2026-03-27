@@ -317,6 +317,102 @@ export function computeSpacers(
   return { a: buildSet(spacersA), b: buildSet(spacersB) };
 }
 
+/**
+ * Compute spacers by measuring actual rendered chunk heights from the DOM.
+ * This accounts for line wrapping — the taller side's rendered height is used
+ * to determine how much spacer the shorter side needs.
+ * Must be called AFTER diff decorations (with cm-chunk-N classes) are applied.
+ */
+export function computeSpacersFromDOM(
+  editorA: EditorView,
+  editorB: EditorView,
+  chunks: readonly InstanceType<typeof Chunk>[],
+  lineHeight: number,
+): { a: DecorationSet; b: DecorationSet } | null {
+  const spacersA: Array<{ pos: number; height: number; className?: string }> = [];
+  const spacersB: Array<{ pos: number; height: number; className?: string }> = [];
+  const docA = editorA.state.doc;
+  const docB = editorB.state.doc;
+  const lh = Math.round(lineHeight);
+
+  const measureChunkDOM = (editor: EditorView, chunkIndex: number): number => {
+    const els = editor.dom.querySelectorAll(`.cm-chunk-${chunkIndex}`);
+    if (!els.length) return 0;
+    let top = Infinity, bottom = -Infinity;
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      if (r.height === 0) continue; // skip hidden insertion-point lines
+      if (r.top < top) top = r.top;
+      if (r.bottom > bottom) bottom = r.bottom;
+    }
+    return top < bottom ? Math.round(bottom - top) : 0;
+  };
+
+  let anyDifference = false;
+
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const chunk = chunks[ci];
+    const aEmpty = chunk.fromA === chunk.toA;
+    const bEmpty = chunk.fromB === chunk.toB;
+
+    // Measure both sides from DOM
+    const domHeightA = aEmpty ? 0 : measureChunkDOM(editorA, ci);
+    const domHeightB = bEmpty ? 0 : measureChunkDOM(editorB, ci);
+
+    // Fall back to line-count if DOM measurement unavailable (off-screen)
+    let linesA = 0, linesB = 0;
+    if (!aEmpty) {
+      const s = docA.lineAt(chunk.fromA);
+      const e = docA.lineAt(Math.min(chunk.toA - 1, docA.length));
+      linesA = e.number - s.number + 1;
+    }
+    if (!bEmpty) {
+      const s = docB.lineAt(chunk.fromB);
+      const e = docB.lineAt(Math.min(chunk.toB - 1, docB.length));
+      linesB = e.number - s.number + 1;
+    }
+
+    const heightA = domHeightA > 0 ? domHeightA : linesA * lh;
+    const heightB = domHeightB > 0 ? domHeightB : linesB * lh;
+
+    const diff = heightA - heightB;
+    const lineDiff = linesA - linesB;
+
+    if (diff > 0) {
+      const pos = bEmpty
+        ? Math.min(chunk.fromB, docB.length)
+        : docB.lineAt(Math.min(chunk.toB > 0 ? chunk.toB - 1 : 0, docB.length)).to;
+      spacersB.push({ pos, height: diff });
+      if (diff !== lineDiff * lh) anyDifference = true;
+    } else if (diff < 0) {
+      const pos = aEmpty
+        ? Math.min(chunk.fromA, docA.length)
+        : docA.lineAt(Math.min(chunk.toA > 0 ? chunk.toA - 1 : 0, docA.length)).to;
+      spacersA.push({ pos, height: -diff });
+      if (-diff !== -lineDiff * lh) anyDifference = true;
+    }
+  }
+
+  // Only return corrected spacers if they differ from line-count calculation
+  if (!anyDifference) return null;
+
+  const buildSet = (items: Array<{ pos: number; height: number; className?: string }>): DecorationSet => {
+    if (!items.length) return Decoration.none;
+    items.sort((a, b) => a.pos - b.pos);
+    return Decoration.set(
+      items.map(s =>
+        Decoration.widget({
+          widget: new SpacerWidget(s.height, s.className),
+          block: true,
+          side: 1,
+        }).range(s.pos)
+      )
+    );
+  };
+
+  return { a: buildSet(spacersA), b: buildSet(spacersB) };
+}
+
 // Trim identical leading/trailing lines from chunks for cleaner line-level diffs
 export function trimChunkEdges(
   docA: Text,

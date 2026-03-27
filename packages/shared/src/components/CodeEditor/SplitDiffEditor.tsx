@@ -8,7 +8,7 @@ import type { CodeDiffEditorProps } from './types';
 import { reviewCursorTheme, diffTheme } from './themes';
 import { getLanguageExtension } from './languageExtension';
 import { baseExtensions } from './baseExtensions';
-import { buildDiffDecos, computeSpacers, buildLineChunks, drawFlowConnections, RevertGutterMarker, updateScrollbarMarkers, type ChunkType } from './diffUtils';
+import { buildDiffDecos, computeSpacers, computeSpacersFromDOM, buildLineChunks, drawFlowConnections, RevertGutterMarker, updateScrollbarMarkers, type ChunkType } from './diffUtils';
 import { InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, InputBlockWidget } from './reviewComponents';
 import { useDiffSync } from './useDiffSync';
 
@@ -113,25 +113,38 @@ export function SplitDiffEditorInner({
     const resultA = buildDiffDecos(docA, chunks, 'a');
     const resultB = buildDiffDecos(docB, chunks, 'b');
 
-    // Alignment spacers — measure actual line height from DOM, pass editors for
-    // pixel-accurate measurement that accounts for line wrapping
+    // Phase 1: Apply diff decorations (which add cm-chunk-N classes) + initial line-count spacers
     const measuredLine = a.dom.querySelector('.cm-line');
     const lineHeight = measuredLine ? measuredLine.getBoundingClientRect().height : a.defaultLineHeight;
-    const spacers = computeSpacers(docA, docB, chunks, lineHeight);
+    const initialSpacers = computeSpacers(docA, docB, chunks, lineHeight);
 
     a.dispatch({
       effects: [
         diffDecoCompartmentA.current.reconfigure(EditorView.decorations.of(resultA.decos)),
-        spacerCompartmentA.current.reconfigure(EditorView.decorations.of(spacers.a)),
+        spacerCompartmentA.current.reconfigure(EditorView.decorations.of(initialSpacers.a)),
         gutterClassCompartmentA.current.reconfigure(gutterLineClass.of(resultA.gutterMarkers)),
       ],
     });
     b.dispatch({
       effects: [
         diffDecoCompartmentB.current.reconfigure(EditorView.decorations.of(resultB.decos)),
-        spacerCompartmentB.current.reconfigure(EditorView.decorations.of(spacers.b)),
+        spacerCompartmentB.current.reconfigure(EditorView.decorations.of(initialSpacers.b)),
         gutterClassCompartmentB.current.reconfigure(gutterLineClass.of(resultB.gutterMarkers)),
       ],
+    });
+
+    // Phase 2: After layout, measure actual rendered chunk heights from DOM
+    // and correct spacers to account for line wrapping
+    requestAnimationFrame(() => {
+      const aRef = editorARef.current;
+      const bRef = editorBRef.current;
+      if (!aRef || !bRef) return;
+      const lh = Math.round(lineHeight);
+      const correctedSpacers = computeSpacersFromDOM(aRef, bRef, chunks, lh);
+      if (correctedSpacers) {
+        aRef.dispatch({ effects: [spacerCompartmentA.current.reconfigure(EditorView.decorations.of(correctedSpacers.a))] });
+        bRef.dispatch({ effects: [spacerCompartmentB.current.reconfigure(EditorView.decorations.of(correctedSpacers.b))] });
+      }
     });
 
     // Build revert gutter markers AFTER spacers are applied

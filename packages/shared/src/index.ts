@@ -5,7 +5,7 @@ export { InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, In
 export { orcheTheme, orcheSyntaxHighlighting, reviewCursorTheme, diffTheme } from './components/CodeEditor/themes';
 export { baseExtensions } from './components/CodeEditor/baseExtensions';
 export { getLanguageExtension } from './components/CodeEditor/languageExtension';
-export { buildDiffDecos, computeSpacers, trimChunkEdges, buildLineChunks, drawFlowConnections, createResizingWidget, RevertGutterMarker, SpacerWidget, DiffGutterMarker, updateScrollbarMarkers } from './components/CodeEditor/diffUtils';
+export { buildDiffDecos, computeSpacers, computeSpacersFromDOM, trimChunkEdges, buildLineChunks, drawFlowConnections, createResizingWidget, RevertGutterMarker, SpacerWidget, DiffGutterMarker, updateScrollbarMarkers } from './components/CodeEditor/diffUtils';
 export type { CodeDiffEditorProps, CodeEditorProps, DiffMode, ExistingComment } from './components/CodeEditor/types';
 
 // UI
