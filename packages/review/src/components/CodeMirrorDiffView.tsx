@@ -27,15 +27,45 @@ const MERGE_VIEW_STYLES = `
   height: auto !important;
 }
 
-/* Spacer stripe pattern for empty areas */
-.cm-mergeView .cm-mergeViewChunkSpacer {
+/* Spacer stripe pattern for empty areas (void indicator) */
+.cm-mergeView .cm-mergeSpacer {
   background: repeating-linear-gradient(
-    -45deg, transparent, transparent 3px,
-    rgba(255,255,255,0.04) 3px, rgba(255,255,255,0.04) 4px
+    -45deg, transparent, transparent 4px,
+    rgba(255,255,255,0.07) 4px, rgba(255,255,255,0.07) 7px
   ) !important;
 }
 
-/* Clean gap between panes */
+/* Changed line backgrounds — right side (additions) green */
+.cm-mergeView .cm-merge-b .cm-changedLine {
+  background: rgba(34, 197, 94, 0.12) !important;
+}
+/* Changed line backgrounds — left side (deletions) red */
+.cm-mergeView .cm-merge-a .cm-changedLine {
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
+/* Inline text change highlighting */
+.cm-mergeView .cm-changedText {
+  background: rgba(34, 197, 94, 0.25) !important;
+}
+.cm-mergeView .cm-deletedText {
+  background: rgba(239, 68, 68, 0.25) !important;
+}
+
+/* Gutter tinting — right side (additions) green */
+.cm-mergeView .cm-merge-b .cm-changedLineGutter .cm-gutterElement {
+  border-left: 2px solid rgba(34, 197, 94, 0.4) !important;
+  color: rgba(34, 197, 94, 0.6) !important;
+  background: rgba(34, 197, 94, 0.08) !important;
+}
+/* Gutter tinting — left side (deletions) red */
+.cm-mergeView .cm-merge-a .cm-changedLineGutter .cm-gutterElement {
+  border-left: 2px solid rgba(239, 68, 68, 0.4) !important;
+  color: rgba(239, 68, 68, 0.6) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+}
+
+/* Clean gap between panes — subtle dark divider */
 .cm-mergeView .cm-mergeViewGap {
   background: color-mix(in oklch, var(--base) 80%, black) !important;
   width: 2px !important;
@@ -46,14 +76,12 @@ const MERGE_VIEW_STYLES = `
   display: none !important;
 }
 
-/* Gutter tinting for changed lines */
-.cm-mergeView .cm-changedLineGutter .cm-gutterElement {
-  border-left: 2px solid var(--diff-inserted-border) !important;
-  color: var(--diff-inserted-border) !important;
-}
-.cm-mergeView .cm-deletedLineGutter .cm-gutterElement {
-  border-left: 2px solid var(--diff-deleted-border) !important;
-  color: var(--diff-deleted-border) !important;
+/* Collapsed lines styling */
+.cm-mergeView .cm-collapsedLines {
+  padding: 3px 0 !important;
+  font-size: 11px !important;
+  color: var(--fg-tertiary) !important;
+  background: linear-gradient(to bottom, transparent, var(--sidebar) 35%, var(--sidebar) 65%, transparent) !important;
 }
 `
 
