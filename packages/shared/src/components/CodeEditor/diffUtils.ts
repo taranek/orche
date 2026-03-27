@@ -259,8 +259,6 @@ export function computeSpacers(
   docB: Text,
   chunks: readonly InstanceType<typeof Chunk>[],
   lineHeight: number,
-  editorA?: EditorView,
-  editorB?: EditorView,
 ): { a: DecorationSet; b: DecorationSet } {
   const spacersA: Array<{ pos: number; height: number; className?: string }> = [];
   const spacersB: Array<{ pos: number; height: number; className?: string }> = [];
@@ -268,28 +266,25 @@ export function computeSpacers(
   // Snap lineHeight to nearest integer to avoid fractional drift
   const lh = Math.round(lineHeight);
 
-  // Measure actual rendered height of a chunk range using lineBlockAt (accounts for wrapping)
-  const measureHeight = (editor: EditorView | undefined, doc: Text, from: number, to: number): number => {
-    if (!editor || from >= to) return 0;
-    const startBlock = editor.lineBlockAt(Math.min(from, doc.length));
-    const endBlock = editor.lineBlockAt(Math.min(to > 0 ? to - 1 : 0, doc.length));
-    return endBlock.top + endBlock.height - startBlock.top;
-  };
-
   for (let ci = 0; ci < chunks.length; ci++) {
     const chunk = chunks[ci];
     const aEmpty = chunk.fromA === chunk.toA;
     const bEmpty = chunk.fromB === chunk.toB;
 
-    // Use pixel-accurate measurement when editors are available
-    const heightA = aEmpty ? 0 : (editorA
-      ? measureHeight(editorA, docA, chunk.fromA, chunk.toA)
-      : (() => { const s = docA.lineAt(chunk.fromA); const e = docA.lineAt(Math.min(chunk.toA - 1, docA.length)); return (e.number - s.number + 1) * lh; })()
-    );
-    const heightB = bEmpty ? 0 : (editorB
-      ? measureHeight(editorB, docB, chunk.fromB, chunk.toB)
-      : (() => { const s = docB.lineAt(chunk.fromB); const e = docB.lineAt(Math.min(chunk.toB - 1, docB.length)); return (e.number - s.number + 1) * lh; })()
-    );
+    let linesA = 0, linesB = 0;
+    if (!aEmpty) {
+      const s = docA.lineAt(chunk.fromA);
+      const e = docA.lineAt(Math.min(chunk.toA - 1, docA.length));
+      linesA = e.number - s.number + 1;
+    }
+    if (!bEmpty) {
+      const s = docB.lineAt(chunk.fromB);
+      const e = docB.lineAt(Math.min(chunk.toB - 1, docB.length));
+      linesB = e.number - s.number + 1;
+    }
+
+    const heightA = linesA * lh;
+    const heightB = linesB * lh;
 
     const diff = heightA - heightB;
     if (diff > 0) {

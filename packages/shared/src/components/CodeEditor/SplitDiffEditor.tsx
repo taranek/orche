@@ -113,32 +113,25 @@ export function SplitDiffEditorInner({
     const resultA = buildDiffDecos(docA, chunks, 'a');
     const resultB = buildDiffDecos(docB, chunks, 'b');
 
-    // Phase 1: Apply diff decorations (affects line wrapping) + clear old spacers
+    // Alignment spacers — measure actual line height from DOM, pass editors for
+    // pixel-accurate measurement that accounts for line wrapping
+    const measuredLine = a.dom.querySelector('.cm-line');
+    const lineHeight = measuredLine ? measuredLine.getBoundingClientRect().height : a.defaultLineHeight;
+    const spacers = computeSpacers(docA, docB, chunks, lineHeight);
+
     a.dispatch({
       effects: [
         diffDecoCompartmentA.current.reconfigure(EditorView.decorations.of(resultA.decos)),
-        spacerCompartmentA.current.reconfigure([]),
+        spacerCompartmentA.current.reconfigure(EditorView.decorations.of(spacers.a)),
         gutterClassCompartmentA.current.reconfigure(gutterLineClass.of(resultA.gutterMarkers)),
       ],
     });
     b.dispatch({
       effects: [
         diffDecoCompartmentB.current.reconfigure(EditorView.decorations.of(resultB.decos)),
-        spacerCompartmentB.current.reconfigure([]),
+        spacerCompartmentB.current.reconfigure(EditorView.decorations.of(spacers.b)),
         gutterClassCompartmentB.current.reconfigure(gutterLineClass.of(resultB.gutterMarkers)),
       ],
-    });
-
-    // Phase 2: After layout settles, measure actual rendered heights (with wrapping) and apply spacers
-    requestAnimationFrame(() => {
-      const aRef = editorARef.current;
-      const bRef = editorBRef.current;
-      if (!aRef || !bRef) return;
-      const measuredLine = aRef.dom.querySelector('.cm-line');
-      const lineHeight = measuredLine ? measuredLine.getBoundingClientRect().height : aRef.defaultLineHeight;
-      const spacers = computeSpacers(aRef.state.doc, bRef.state.doc, chunks, lineHeight, aRef, bRef);
-      aRef.dispatch({ effects: [spacerCompartmentA.current.reconfigure(EditorView.decorations.of(spacers.a))] });
-      bRef.dispatch({ effects: [spacerCompartmentB.current.reconfigure(EditorView.decorations.of(spacers.b))] });
     });
 
     // Build revert gutter markers AFTER spacers are applied
