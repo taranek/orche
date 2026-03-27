@@ -1,37 +1,59 @@
 import { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
-import { CodeDiffEditor, type ExistingComment } from '@orche/shared'
+import { MergeView } from '@codemirror/merge'
+import { EditorView } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import {
+  baseExtensions, getLanguageExtension, diffTheme,
+  type ExistingComment,
+} from '@orche/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { FileChange } from '../types'
 
-/** Style overrides for the multi-file flat scroll layout */
-const PIERRE_STYLES = `
-/* Hide SVG flow connections — they leak between files in flat scroll */
-.cm-diff-override svg { display: none !important; }
-
-/* Divider between panes — clean subtle gap like Pierre */
-.cm-diff-override > div > div:nth-child(2) {
-  width: 2px !important;
-  background: color-mix(in oklch, var(--base) 80%, black) !important;
-  pointer-events: none;
-  overflow: hidden !important;
+/** Style overrides for the MergeView in flat scroll layout */
+const MERGE_VIEW_STYLES = `
+/* Make MergeView render at natural height (no internal scroll) */
+.cm-mergeView {
+  height: auto !important;
+  overflow: visible !important;
+}
+.cm-mergeView .cm-editor {
+  height: auto !important;
+  overflow: visible !important;
+}
+.cm-mergeView .cm-scroller {
+  overflow: visible !important;
+  position: relative !important;
+  inset: auto !important;
+  height: auto !important;
 }
 
-/* Hide revert gutter (uses SVG buttons that don't work in flat scroll) */
-.cm-diff-override .cm-revert-gutter { display: none !important; }
+/* Spacer stripe pattern for empty areas */
+.cm-mergeView .cm-mergeViewChunkSpacer {
+  background: repeating-linear-gradient(
+    -45deg, transparent, transparent 3px,
+    rgba(255,255,255,0.04) 3px, rgba(255,255,255,0.04) 4px
+  ) !important;
+}
 
-
-/* Hide insertion/deletion point lines completely — spacer has full height to compensate */
-.cm-diff-override .cm-diff-insertion-point,
-.cm-diff-override .cm-diff-deletion-point {
-  height: 0 !important;
-  min-height: 0 !important;
+/* Clean gap between panes */
+.cm-mergeView .cm-mergeViewGap {
+  background: color-mix(in oklch, var(--base) 80%, black) !important;
+  width: 2px !important;
+  min-width: 2px !important;
   padding: 0 !important;
-  margin: 0 !important;
-  line-height: 0 !important;
-  font-size: 0 !important;
-  overflow: hidden !important;
-  background: none !important;
-  box-shadow: none !important;
+}
+.cm-mergeView .cm-mergeViewGap button {
+  display: none !important;
+}
+
+/* Gutter tinting for changed lines */
+.cm-mergeView .cm-changedLineGutter .cm-gutterElement {
+  border-left: 2px solid var(--diff-inserted-border) !important;
+  color: var(--diff-inserted-border) !important;
+}
+.cm-mergeView .cm-deletedLineGutter .cm-gutterElement {
+  border-left: 2px solid var(--diff-deleted-border) !important;
+  color: var(--diff-deleted-border) !important;
 }
 `
 
@@ -59,77 +81,101 @@ interface CodeMirrorDiffViewProps {
 function computeStats(original: string, modified: string) {
   const origLines = original ? original.split('\n') : []
   const modLines = modified ? modified.split('\n') : []
-  // Simple line-based diff count
   const maxLen = Math.max(origLines.length, modLines.length)
   let additions = 0, deletions = 0
   for (let i = 0; i < maxLen; i++) {
-    const a = origLines[i]
-    const b = modLines[i]
-    if (a !== b) {
-      if (a !== undefined) deletions++
-      if (b !== undefined) additions++
+    if (origLines[i] !== modLines[i]) {
+      if (origLines[i] !== undefined) deletions++
+      if (modLines[i] !== undefined) additions++
     }
   }
   return { additions, deletions }
 }
 
-/** Auto-sizing wrapper for CodeDiffEditor — measures scrollHeight and expands to fit */
-function AutoSizedDiffEditor({
-  original, modified, filePath, onChange, onComment, onDeleteComment, existingComments,
+/** MergeView wrapper — uses @codemirror/merge for native side-by-side alignment */
+function MergeViewEditor({
+  original, modified, filePath, onChange,
 }: {
   original: string
   modified: string
   filePath: string
   onChange: (value: string) => void
-  onComment: (line: number, text: string) => void
-  onDeleteComment: (id: string) => void
-  existingComments: ExistingComment[]
 }) {
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState<number>(400)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mergeViewRef = useRef<MergeView | null>(null)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
-  // After mount, measure the actual scroll height and resize
   useEffect(() => {
-    const wrapper = wrapperRef.current
-    if (!wrapper) return
+    const el = containerRef.current
+    if (!el) return
 
-    // Wait for CodeMirror to finish layout
-    const measure = () => {
-      const scrollers = wrapper.querySelectorAll('.cm-scroller')
-      let maxH = 400
-      scrollers.forEach((s) => {
-        if (s.scrollHeight > maxH) maxH = s.scrollHeight
-      })
-      if (maxH !== height) setHeight(maxH)
+    const langExt = getLanguageExtension(filePath)
+    const commonExts = [
+      ...baseExtensions({ readOnly: false }),
+      diffTheme,
+      langExt,
+    ]
+
+    const view = new MergeView({
+      a: {
+        doc: original,
+        extensions: [
+          ...commonExts,
+          EditorState.readOnly.of(true),
+        ],
+      },
+      b: {
+        doc: modified,
+        extensions: [
+          ...commonExts,
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              onChangeRef.current(update.state.doc.toString())
+            }
+          }),
+        ],
+      },
+      parent: el,
+      collapseUnchanged: { margin: 3, minSize: 6 },
+      highlightChanges: true,
+      gutter: true,
+    })
+
+    mergeViewRef.current = view
+
+    return () => {
+      view.destroy()
+      mergeViewRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    // Multiple rAFs to wait for diff computation + spacers
-    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(measure)))
-  })
+  // Update documents when props change
+  useEffect(() => {
+    const view = mergeViewRef.current
+    if (!view) return
 
-  return (
-    <div ref={wrapperRef} className="cm-diff-override" style={{ height }}>
-      <CodeDiffEditor
-        original={original}
-        modified={modified}
-        mode="split"
-        filePath={filePath}
-        onChange={onChange}
-        reviewMode
-        existingComments={existingComments}
-        onComment={onComment}
-        onDeleteComment={onDeleteComment}
-      />
-    </div>
-  )
+    const currentA = view.a.state.doc.toString()
+    const currentB = view.b.state.doc.toString()
+
+    if (currentA !== original) {
+      view.a.dispatch({ changes: { from: 0, to: view.a.state.doc.length, insert: original } })
+    }
+    if (currentB !== modified) {
+      view.b.dispatch({ changes: { from: 0, to: view.b.state.doc.length, insert: modified } })
+    }
+  }, [original, modified])
+
+  return <div ref={containerRef} />
 }
 
 export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirrorDiffViewProps>(
   function CodeMirrorDiffView({
     changes,
-    commentsByFile,
-    onComment,
-    onDeleteComment,
+    commentsByFile: _commentsByFile,
+    onComment: _onComment,
+    onDeleteComment: _onDeleteComment,
     onChange,
     activeFile: _activeFile,
     onActiveFileChange,
@@ -236,14 +282,13 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
 
     return (
       <div ref={containerRef} id="cm-diff-scroll" style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
-        <style dangerouslySetInnerHTML={{ __html: PIERRE_STYLES }} />
+        <style dangerouslySetInnerHTML={{ __html: MERGE_VIEW_STYLES }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {sortedChanges.map((change) => {
             const fileData = fileDataMap[change.path]
             if (!fileData) return null
 
             const isCollapsed = collapsedFiles[change.path] ?? false
-            const fileComments = commentsByFile[change.path] ?? []
             const stats = computeStats(fileData.original, fileData.modified)
             const statusIcon = change.status === 'added' ? '+' : change.status === 'deleted' ? '-' : '~'
             const statusColor = change.status === 'added'
@@ -287,16 +332,13 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
                   </span>
                 </div>
 
-                {/* Diff editor — auto-sized to content */}
+                {/* MergeView — native side-by-side diff with proper alignment */}
                 {!isCollapsed && (
-                  <AutoSizedDiffEditor
+                  <MergeViewEditor
                     original={fileData.original}
                     modified={fileData.modified}
                     filePath={change.path}
                     onChange={(value) => onChange(change.path, value)}
-                    existingComments={fileComments}
-                    onComment={(line, text) => onComment(change.path, line, text)}
-                    onDeleteComment={onDeleteComment}
                   />
                 )}
               </div>
