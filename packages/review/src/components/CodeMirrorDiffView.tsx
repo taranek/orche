@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
+import { createPortal } from 'react-dom'
 import { MergeView } from '@codemirror/merge'
-import { EditorView } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { EditorView, Decoration, gutter, type BlockInfo } from '@codemirror/view'
+import { EditorState, Compartment, StateEffect, StateField, type ChangeDesc } from '@codemirror/state'
 import {
-  baseExtensions, getLanguageExtension, diffTheme,
+  baseExtensions, getLanguageExtension, diffTheme, reviewCursorTheme,
   type ExistingComment,
+  InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, InputBlockWidget,
 } from '@orche/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { FileChange } from '../types'
@@ -99,9 +101,11 @@ interface CodeMirrorDiffViewProps {
   commentsByFile: Record<string, ExistingComment[]>
   onComment: (filePath: string, line: number, text: string) => void
   onDeleteComment: (id: string) => void
+  onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
   onChange: (filePath: string, content: string) => void
   activeFile: string | null
   onActiveFileChange: (path: string) => void
+  reviewMode?: boolean
   theme: 'dark' | 'light'
 }
 
@@ -120,19 +124,77 @@ function computeStats(original: string, modified: string) {
   return { additions, deletions }
 }
 
+// --- Review decoration state field ---
+// Decorations live in a StateField so they survive doc changes via `map`,
+// avoiding portal container destruction on every keystroke.
+
+interface ReviewDecoState {
+  widgets: ReturnType<typeof Decoration.set>
+  lineDecos: ReturnType<typeof Decoration.set>
+}
+
+const setReviewDecos = StateEffect.define<ReviewDecoState>()
+
+const reviewDecoField = StateField.define<ReviewDecoState>({
+  create: () => ({ widgets: Decoration.none, lineDecos: Decoration.none }),
+  update(value, tr) {
+    // If we got an explicit replacement, use it
+    for (const e of tr.effects) {
+      if (e.is(setReviewDecos)) return e.value
+    }
+    // Otherwise map through doc changes to keep positions stable
+    if (tr.docChanged) {
+      return {
+        widgets: value.widgets.map(tr.changes as ChangeDesc),
+        lineDecos: value.lineDecos.map(tr.changes as ChangeDesc),
+      }
+    }
+    return value
+  },
+  provide: (f) => EditorView.decorations.from(f, (v) => v.widgets),
+})
+
+const reviewLineDecoField = EditorView.decorations.from(reviewDecoField, (v) => v.lineDecos)
+
 /** MergeView wrapper — uses @codemirror/merge for native side-by-side alignment */
 function MergeViewEditor({
   original, modified, filePath, onChange,
+  onComment, onDeleteComment, onRelocateComments, existingComments, reviewMode,
 }: {
   original: string
   modified: string
   filePath: string
   onChange: (value: string) => void
+  onComment: (line: number, text: string) => void
+  onDeleteComment: (id: string) => void
+  onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
+  existingComments: ExistingComment[]
+  reviewMode: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mergeViewRef = useRef<MergeView | null>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const onCommentRef = useRef(onComment)
+  onCommentRef.current = onComment
+  const onDeleteCommentRef = useRef(onDeleteComment)
+  onDeleteCommentRef.current = onDeleteComment
+  const onRelocateCommentsRef = useRef(onRelocateComments)
+  onRelocateCommentsRef.current = onRelocateComments
+  const reviewModeRef = useRef(reviewMode)
+  reviewModeRef.current = reviewMode
+  const existingCommentsRef = useRef(existingComments)
+  existingCommentsRef.current = existingComments
+  // Track which comment ids are installed so we know when to rebuild vs rely on map
+  const installedCommentIdsRef = useRef<string>('')
+
+  const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null)
+  const [commentWidgetDoms, setCommentWidgetDoms] = useState<Map<string, HTMLDivElement>>(new Map())
+  const [inputWidgetDom, setInputWidgetDom] = useState<HTMLDivElement | null>(null)
+
+  const hoverDecoCompartment = useRef(new Compartment())
+  const readOnlyCompartment = useRef(new Compartment())
+  const hoveredLineRef = useRef<number | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
@@ -144,6 +206,65 @@ function MergeViewEditor({
       diffTheme,
       langExt,
     ]
+
+    const reviewGutter = gutter({
+      class: 'cm-review-gutter',
+      lineMarker: (view: EditorView, line: BlockInfo) => {
+        if (!reviewModeRef.current) return null
+        const lineNum = view.state.doc.lineAt(line.from).number
+        const hasComment = existingCommentsRef.current?.some(c => c.lineNumber === lineNum)
+        if (hasComment) return new ReviewGutterMarker()
+        return null
+      },
+      domEventHandlers: {
+        click: (view: EditorView, line: BlockInfo) => {
+          if (!reviewModeRef.current) return false
+          setActiveCommentLine(view.state.doc.lineAt(line.from).number)
+          return true
+        },
+      },
+    })
+
+    const hoverTracker = EditorView.domEventHandlers({
+      click: (e: MouseEvent, view: EditorView) => {
+        if (!reviewModeRef.current) return false
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+        if (pos === null) return false
+        setActiveCommentLine(view.state.doc.lineAt(pos).number)
+        return true
+      },
+      mousemove: (e: MouseEvent, view: EditorView) => {
+        if (!reviewModeRef.current) return false
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+        if (pos === null) {
+          if (hoveredLineRef.current !== null) {
+            hoveredLineRef.current = null
+            view.dispatch({ effects: hoverDecoCompartment.current.reconfigure([]) })
+          }
+          return false
+        }
+        const lineNum = view.state.doc.lineAt(pos).number
+        if (lineNum !== hoveredLineRef.current) {
+          hoveredLineRef.current = lineNum
+          const line = view.state.doc.line(lineNum)
+          view.dispatch({
+            effects: hoverDecoCompartment.current.reconfigure(
+              EditorView.decorations.of(
+                Decoration.set([Decoration.line({ class: 'cm-review-line-highlight' }).range(line.from)])
+              )
+            ),
+          })
+        }
+        return false
+      },
+      mouseleave: (_e: MouseEvent, view: EditorView) => {
+        if (hoveredLineRef.current !== null) {
+          hoveredLineRef.current = null
+          view.dispatch({ effects: hoverDecoCompartment.current.reconfigure([]) })
+        }
+        return false
+      },
+    })
 
     const view = new MergeView({
       a: {
@@ -157,6 +278,12 @@ function MergeViewEditor({
         doc: modified,
         extensions: [
           ...commonExts,
+          readOnlyCompartment.current.of(reviewMode ? [EditorState.readOnly.of(true), reviewCursorTheme] : []),
+          reviewDecoField,
+          reviewLineDecoField,
+          hoverDecoCompartment.current.of([]),
+          reviewGutter,
+          hoverTracker,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               onChangeRef.current(update.state.doc.toString())
@@ -173,10 +300,43 @@ function MergeViewEditor({
     mergeViewRef.current = view
 
     return () => {
+      // Flush relocated positions to store on unmount
+      flushRelocations()
       view.destroy()
       mergeViewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** Read current widget positions from the StateField and report relocated line numbers */
+  const flushRelocations = useCallback(() => {
+    const view = mergeViewRef.current
+    if (!view) return
+    const b = view.b
+    const comments = existingCommentsRef.current
+    if (!comments?.length) return
+    const moves: Array<{ id: string; lineNumber: number }> = []
+    const decoState = b.state.field(reviewDecoField)
+    // Walk the widget decorations to find current positions
+    const idToPos = new Map<string, number>()
+    const iter = decoState.widgets.iter()
+    while (iter.value) {
+      const w = iter.value.spec.widget
+      if (w instanceof CommentBlockWidget) {
+        idToPos.set(w.id, iter.from)
+      }
+      iter.next()
+    }
+    for (const c of comments) {
+      const pos = idToPos.get(c.id)
+      if (pos != null) {
+        const newLine = b.state.doc.lineAt(pos).number
+        if (newLine !== c.lineNumber) {
+          moves.push({ id: c.id, lineNumber: newLine })
+        }
+      }
+    }
+    if (moves.length) onRelocateCommentsRef.current(moves)
   }, [])
 
   // Update documents when props change
@@ -195,18 +355,129 @@ function MergeViewEditor({
     }
   }, [original, modified])
 
-  return <div ref={containerRef} />
+  // Update readOnly based on reviewMode
+  useEffect(() => {
+    const view = mergeViewRef.current
+    if (!view) return
+    view.b.dispatch({
+      effects: readOnlyCompartment.current.reconfigure(
+        reviewMode ? [EditorState.readOnly.of(true), reviewCursorTheme] : []
+      ),
+    })
+    if (!reviewMode) {
+      // Flush relocated positions when leaving review mode
+      flushRelocations()
+      hoveredLineRef.current = null
+      view.b.dispatch({ effects: hoverDecoCompartment.current.reconfigure([]) })
+      setActiveCommentLine(null)
+    }
+  }, [reviewMode, flushRelocations])
+
+  // Build & dispatch review decorations only when comment set or activeCommentLine changes
+  useEffect(() => {
+    const view = mergeViewRef.current
+    if (!view) return
+    const b = view.b
+    const comments = existingComments
+    const inputLine = activeCommentLine
+
+    // Check if the comment set actually changed (not just line numbers shifting)
+    const commentIds = comments?.map(c => c.id).sort().join(',') ?? ''
+    const inputKey = inputLine != null ? `|input-${inputLine}` : ''
+    const decoKey = commentIds + inputKey
+    if (decoKey === installedCommentIdsRef.current) return
+    installedCommentIdsRef.current = decoKey
+
+    const widgetSpecs: Array<{ pos: number; widget: CommentBlockWidget | InputBlockWidget }> = []
+    if (comments?.length) {
+      for (const c of [...comments].sort((a, cb) => a.lineNumber - cb.lineNumber)) {
+        if (c.lineNumber <= b.state.doc.lines) {
+          widgetSpecs.push({ pos: b.state.doc.line(c.lineNumber).to, widget: new CommentBlockWidget(c.id) })
+        }
+      }
+    }
+    if (inputLine !== null && inputLine <= b.state.doc.lines) {
+      widgetSpecs.push({ pos: b.state.doc.line(inputLine).to, widget: new InputBlockWidget(`input-${inputLine}`) })
+    }
+    widgetSpecs.sort((a, bb) => a.pos - bb.pos)
+
+    const widgetDecos = widgetSpecs.length > 0
+      ? Decoration.set(widgetSpecs.map(w => Decoration.widget({ widget: w.widget, block: true, side: 1 }).range(w.pos)))
+      : Decoration.none
+    const lineDecos = comments?.length
+      ? Decoration.set(
+          comments
+            .filter(c => c.lineNumber <= b.state.doc.lines)
+            .map(c => Decoration.line({ class: 'cm-review-commented-line' }).range(b.state.doc.line(c.lineNumber).from))
+            .sort((a, bb) => a.from - bb.from)
+        )
+      : Decoration.none
+
+    b.dispatch({ effects: setReviewDecos.of({ widgets: widgetDecos, lineDecos }) })
+
+    // Query portal containers after CM processes the new widgets
+    requestAnimationFrame(() => {
+      const newCommentDoms = new Map<string, HTMLDivElement>()
+      b.dom.querySelectorAll<HTMLDivElement>('[data-comment-widget-id]').forEach((el: HTMLDivElement) => {
+        newCommentDoms.set(el.dataset.commentWidgetId!, el)
+      })
+      setCommentWidgetDoms(newCommentDoms)
+      const inputEl = b.dom.querySelector<HTMLDivElement>('[data-input-widget-key]')
+      setInputWidgetDom(inputEl)
+    })
+  }, [existingComments, activeCommentLine])
+
+  const handleSubmitComment = useCallback((text: string) => {
+    if (activeCommentLine !== null && onCommentRef.current) {
+      onCommentRef.current(activeCommentLine, text)
+    }
+    setActiveCommentLine(null)
+  }, [activeCommentLine])
+
+  const handleCancelComment = useCallback(() => setActiveCommentLine(null), [])
+
+  const existingForLine = activeCommentLine !== null
+    ? existingCommentsRef.current?.find((c) => c.lineNumber === activeCommentLine)
+    : null
+
+  return (
+    <>
+      <div ref={containerRef} />
+      {existingComments?.map(c => {
+        const dom = commentWidgetDoms.get(c.id)
+        if (!dom) return null
+        return createPortal(
+          <InlineComment key={c.id} comment={c} onDelete={(id) => onDeleteCommentRef.current?.(id)} />,
+          dom
+        )
+      })}
+      {inputWidgetDom && activeCommentLine !== null &&
+        createPortal(
+          <CommentInput
+            key={activeCommentLine}
+            defaultValue={existingForLine?.text ?? ''}
+            isUpdate={!!existingForLine}
+            onSubmit={handleSubmitComment}
+            onCancel={handleCancelComment}
+          />,
+          inputWidgetDom
+        )
+      }
+    </>
+  )
 }
 
 export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirrorDiffViewProps>(
   function CodeMirrorDiffView({
     changes,
-    commentsByFile: _commentsByFile,
-    onComment: _onComment,
-    onDeleteComment: _onDeleteComment,
+    commentsByFile,
+    onComment,
+    onDeleteComment,
+    onRelocateComments,
     onChange,
     activeFile: _activeFile,
     onActiveFileChange,
+    reviewMode = false,
     theme: _theme,
   }, ref) {
     const [fileDataMap, setFileDataMap] = useState<Record<string, FileData>>({})
@@ -367,6 +638,11 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
                     modified={fileData.modified}
                     filePath={change.path}
                     onChange={(value) => onChange(change.path, value)}
+                    onComment={(line, text) => onComment(change.path, line, text)}
+                    onDeleteComment={onDeleteComment}
+                    onRelocateComments={onRelocateComments}
+                    existingComments={commentsByFile[change.path] ?? []}
+                    reviewMode={reviewMode}
                   />
                 )}
               </div>

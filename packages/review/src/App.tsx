@@ -31,6 +31,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
   const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('pierre')
+  const [reviewMode, setReviewMode] = useState(true)
   const revertedFiles = useRef(new Set<string>())
   const diffViewRef = useRef<PierreDiffViewHandle>(null)
   const cmDiffViewRef = useRef<CodeMirrorDiffViewHandle>(null)
@@ -40,6 +41,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const {
     addComment,
     removeComment,
+    relocateComments,
     commentsByAgent,
     submitReview,
     clearSubmitted,
@@ -101,6 +103,11 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const handleDeleteComment = useCallback(
     (id: string) => removeComment(REVIEW_ID, id),
     [removeComment]
+  )
+
+  const handleRelocateComments = useCallback(
+    (moves: Array<{ id: string; lineNumber: number }>) => relocateComments(REVIEW_ID, moves),
+    [relocateComments]
   )
 
   const handleSubmit = useCallback(async () => {
@@ -243,6 +250,18 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
               fontWeight: diffEngine === 'codemirror' ? 600 : 400,
             }}
           >CodeMirror</button>
+          <span style={{ fontSize: 10, color: 'var(--fg-tertiary)', marginLeft: 12, marginRight: 4 }}>Mode</span>
+          <button
+            aria-label="Toggle review mode"
+            onClick={() => setReviewMode(r => !r)}
+            style={{
+              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
+              border: reviewMode ? '1px solid var(--accent)' : '1px solid var(--edge)',
+              background: reviewMode ? 'var(--accent)' : 'transparent',
+              color: reviewMode ? 'var(--base)' : 'var(--fg-secondary)',
+              fontWeight: reviewMode ? 600 : 400,
+            }}
+          >Review</button>
         </div>
 
         {/* Diff viewer — virtualized multi-file scroll */}
@@ -267,9 +286,11 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
                 commentsByFile={commentsByFile}
                 onComment={handleComment}
                 onDeleteComment={handleDeleteComment}
+                onRelocateComments={handleRelocateComments}
                 onChange={handleChange}
                 activeFile={activeFile}
                 onActiveFileChange={selectFile}
+                reviewMode={reviewMode}
                 theme={palette.mode}
               />
             )}
