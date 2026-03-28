@@ -30,7 +30,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const [submitted, setSubmitted] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
-  const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('pierre')
+  const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('codemirror')
   const [reviewMode, setReviewMode] = useState(true)
   const revertedFiles = useRef(new Set<string>())
   const diffViewRef = useRef<PierreDiffViewHandle>(null)

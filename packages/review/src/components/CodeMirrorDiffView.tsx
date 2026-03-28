@@ -78,13 +78,65 @@ const MERGE_VIEW_STYLES = `
   display: none !important;
 }
 
-/* Collapsed lines styling */
+/* Collapsed / unchanged lines — matches expandable-pill style */
 .cm-mergeView .cm-collapsedLines {
-  padding: 3px 0 !important;
-  font-size: 11px !important;
-  color: var(--fg-tertiary) !important;
-  background: linear-gradient(to bottom, transparent, var(--sidebar) 35%, var(--sidebar) 65%, transparent) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 0 10px !important;
+  height: 28px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  letter-spacing: -0.01em !important;
+  color: var(--text-secondary) !important;
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-active) !important;
+  border-radius: 14px !important;
+  margin: 4px 8px !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  line-height: 28px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(255,255,255,0.03) !important;
+  /* 200ms ease-out per Emil's defaults — transform+opacity+box-shadow only */
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 200ms cubic-bezier(0.32, 0.72, 0, 1),
+              color 200ms ease-out !important;
 }
+.cm-mergeView .cm-collapsedLines:hover {
+  color: var(--text-primary) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.06) !important;
+}
+.cm-mergeView .cm-collapsedLines:active {
+  transform: scale(0.97) !important;
+}
+.cm-mergeView .cm-collapsedLines::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 4px !important;
+  margin-left: 0 !important;
+  flex-shrink: 0 !important;
+  /* Lucide chevrons-up-down icon */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E") !important;
+  -webkit-mask-size: contain !important;
+  mask-size: contain !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+  background-color: currentColor !important;
+  opacity: 0.5 !important;
+  transition: opacity 200ms ease-out !important;
+  border: none !important;
+}
+.cm-mergeView .cm-collapsedLines:hover::before {
+  opacity: 0.8 !important;
+}
+.cm-mergeView .cm-collapsedLines::after {
+  display: none !important;
+}
+
 `
 
 interface FileData {
