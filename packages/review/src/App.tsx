@@ -31,7 +31,6 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
   const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('codemirror')
-  const [reviewMode, setReviewMode] = useState(true)
   const revertedFiles = useRef(new Set<string>())
   const diffViewRef = useRef<PierreDiffViewHandle>(null)
   const cmDiffViewRef = useRef<CodeMirrorDiffViewHandle>(null)
@@ -225,7 +224,8 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
       {/* Main diff area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Engine toggle */}
+        {/* Engine toggle — debug only */}
+        {import.meta.env.DEV && (
         <div id="engine-toggle" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderBottom: '1px solid var(--edge)', background: 'var(--sidebar)' }}>
           <span style={{ fontSize: 10, color: 'var(--fg-tertiary)', marginRight: 4 }}>Engine</span>
           <button
@@ -250,19 +250,8 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
               fontWeight: diffEngine === 'codemirror' ? 600 : 400,
             }}
           >CodeMirror</button>
-          <span style={{ fontSize: 10, color: 'var(--fg-tertiary)', marginLeft: 12, marginRight: 4 }}>Mode</span>
-          <button
-            aria-label="Toggle review mode"
-            onClick={() => setReviewMode(r => !r)}
-            style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
-              border: reviewMode ? '1px solid var(--accent)' : '1px solid var(--edge)',
-              background: reviewMode ? 'var(--accent)' : 'transparent',
-              color: reviewMode ? 'var(--base)' : 'var(--fg-secondary)',
-              fontWeight: reviewMode ? 600 : 400,
-            }}
-          >Review</button>
         </div>
+        )}
 
         {/* Diff viewer — virtualized multi-file scroll */}
         <div className="flex-1 min-h-0 relative bg-base overflow-hidden">
@@ -290,7 +279,6 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
                 onChange={handleChange}
                 activeFile={activeFile}
                 onActiveFileChange={selectFile}
-                reviewMode={reviewMode}
                 theme={palette.mode}
               />
             )}

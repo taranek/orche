@@ -1,18 +1,38 @@
 import { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { MergeView } from '@codemirror/merge'
-import { EditorView, Decoration, gutter, type BlockInfo } from '@codemirror/view'
-import { EditorState, Compartment, StateEffect, StateField, type ChangeDesc } from '@codemirror/state'
+import { EditorView, Decoration, GutterMarker, gutter, type BlockInfo } from '@codemirror/view'
+import { EditorState, StateEffect, StateField, type ChangeDesc } from '@codemirror/state'
 import {
-  baseExtensions, getLanguageExtension, diffTheme, reviewCursorTheme,
+  baseExtensions, getLanguageExtension, diffTheme,
   type ExistingComment,
-  InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, InputBlockWidget,
+  InlineComment, CommentInput, CommentBlockWidget, InputBlockWidget,
 } from '@orche/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { FileChange } from '../types'
 
 /** Style overrides for the MergeView in flat scroll layout */
 const MERGE_VIEW_STYLES = `
+/* Thin overlay scrollbar — doesn't eat layout width */
+#cm-diff-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+#cm-diff-scroll::-webkit-scrollbar {
+  width: 6px;
+  background: transparent;
+}
+#cm-diff-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+#cm-diff-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+#cm-diff-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Make MergeView render at natural height (no internal scroll) */
 .cm-mergeView {
   height: auto !important;
@@ -93,7 +113,7 @@ const MERGE_VIEW_STYLES = `
   background: var(--bg-elevated) !important;
   border: 1px solid var(--border-active) !important;
   border-radius: 14px !important;
-  margin: 4px 8px !important;
+  margin: 0 8px !important;
   cursor: pointer !important;
   text-align: left !important;
   line-height: 28px !important;
@@ -137,6 +157,55 @@ const MERGE_VIEW_STYLES = `
   display: none !important;
 }
 
+/* Comment gutter — "+" button appears on line hover */
+.cm-mergeView .cm-comment-gutter {
+  width: 24px !important;
+  min-width: 24px !important;
+  padding-right: 4px !important;
+  cursor: pointer;
+}
+.cm-mergeView .cm-comment-gutter .cm-gutterElement {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+.cm-comment-gutter-add {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+/* Show "+" when line is hovered (gutter or content) */
+.cm-comment-gutter .cm-gutterElement:hover .cm-comment-gutter-add,
+.cm-comment-gutter .cm-gutter-line-hover .cm-comment-gutter-add {
+  opacity: 0.5;
+}
+.cm-comment-gutter .cm-gutterElement:hover .cm-comment-gutter-add:hover,
+.cm-comment-gutter .cm-gutter-line-hover .cm-comment-gutter-add:hover {
+  opacity: 1;
+  background: var(--accent);
+  color: var(--bg-base);
+  border-color: var(--accent);
+}
+/* Accent bar for lines with existing comments */
+.cm-comment-gutter-dot {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
 `
 
 interface FileData {
@@ -157,7 +226,6 @@ interface CodeMirrorDiffViewProps {
   onChange: (filePath: string, content: string) => void
   activeFile: string | null
   onActiveFileChange: (path: string) => void
-  reviewMode?: boolean
   theme: 'dark' | 'light'
 }
 
@@ -208,10 +276,34 @@ const reviewDecoField = StateField.define<ReviewDecoState>({
 
 const reviewLineDecoField = EditorView.decorations.from(reviewDecoField, (v) => v.lineDecos)
 
+// --- Comment gutter markers ---
+
+/** "+" button that appears on hover — click to add a comment */
+class AddCommentMarker extends GutterMarker {
+  toDOM() {
+    const el = document.createElement('div')
+    el.className = 'cm-comment-gutter-add'
+    el.textContent = '+'
+    return el
+  }
+}
+
+/** Accent dot for lines that already have a comment */
+class CommentDotMarker extends GutterMarker {
+  toDOM() {
+    const el = document.createElement('div')
+    el.className = 'cm-comment-gutter-dot'
+    return el
+  }
+}
+
+const addCommentMarkerInstance = new AddCommentMarker()
+const commentDotMarkerInstance = new CommentDotMarker()
+
 /** MergeView wrapper — uses @codemirror/merge for native side-by-side alignment */
 function MergeViewEditor({
   original, modified, filePath, onChange,
-  onComment, onDeleteComment, onRelocateComments, existingComments, reviewMode,
+  onComment, onDeleteComment, onRelocateComments, existingComments,
 }: {
   original: string
   modified: string
@@ -221,7 +313,6 @@ function MergeViewEditor({
   onDeleteComment: (id: string) => void
   onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
   existingComments: ExistingComment[]
-  reviewMode: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mergeViewRef = useRef<MergeView | null>(null)
@@ -233,20 +324,13 @@ function MergeViewEditor({
   onDeleteCommentRef.current = onDeleteComment
   const onRelocateCommentsRef = useRef(onRelocateComments)
   onRelocateCommentsRef.current = onRelocateComments
-  const reviewModeRef = useRef(reviewMode)
-  reviewModeRef.current = reviewMode
   const existingCommentsRef = useRef(existingComments)
   existingCommentsRef.current = existingComments
-  // Track which comment ids are installed so we know when to rebuild vs rely on map
   const installedCommentIdsRef = useRef<string>('')
 
   const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null)
   const [commentWidgetDoms, setCommentWidgetDoms] = useState<Map<string, HTMLDivElement>>(new Map())
   const [inputWidgetDom, setInputWidgetDom] = useState<HTMLDivElement | null>(null)
-
-  const hoverDecoCompartment = useRef(new Compartment())
-  const readOnlyCompartment = useRef(new Compartment())
-  const hoveredLineRef = useRef<number | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
@@ -259,62 +343,18 @@ function MergeViewEditor({
       langExt,
     ]
 
-    const reviewGutter = gutter({
-      class: 'cm-review-gutter',
+    const commentGutter = gutter({
+      class: 'cm-comment-gutter',
       lineMarker: (view: EditorView, line: BlockInfo) => {
-        if (!reviewModeRef.current) return null
         const lineNum = view.state.doc.lineAt(line.from).number
         const hasComment = existingCommentsRef.current?.some(c => c.lineNumber === lineNum)
-        if (hasComment) return new ReviewGutterMarker()
-        return null
+        return hasComment ? commentDotMarkerInstance : addCommentMarkerInstance
       },
       domEventHandlers: {
         click: (view: EditorView, line: BlockInfo) => {
-          if (!reviewModeRef.current) return false
           setActiveCommentLine(view.state.doc.lineAt(line.from).number)
           return true
         },
-      },
-    })
-
-    const hoverTracker = EditorView.domEventHandlers({
-      click: (e: MouseEvent, view: EditorView) => {
-        if (!reviewModeRef.current) return false
-        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
-        if (pos === null) return false
-        setActiveCommentLine(view.state.doc.lineAt(pos).number)
-        return true
-      },
-      mousemove: (e: MouseEvent, view: EditorView) => {
-        if (!reviewModeRef.current) return false
-        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
-        if (pos === null) {
-          if (hoveredLineRef.current !== null) {
-            hoveredLineRef.current = null
-            view.dispatch({ effects: hoverDecoCompartment.current.reconfigure([]) })
-          }
-          return false
-        }
-        const lineNum = view.state.doc.lineAt(pos).number
-        if (lineNum !== hoveredLineRef.current) {
-          hoveredLineRef.current = lineNum
-          const line = view.state.doc.line(lineNum)
-          view.dispatch({
-            effects: hoverDecoCompartment.current.reconfigure(
-              EditorView.decorations.of(
-                Decoration.set([Decoration.line({ class: 'cm-review-line-highlight' }).range(line.from)])
-              )
-            ),
-          })
-        }
-        return false
-      },
-      mouseleave: (_e: MouseEvent, view: EditorView) => {
-        if (hoveredLineRef.current !== null) {
-          hoveredLineRef.current = null
-          view.dispatch({ effects: hoverDecoCompartment.current.reconfigure([]) })
-        }
-        return false
       },
     })
 
@@ -330,12 +370,9 @@ function MergeViewEditor({
         doc: modified,
         extensions: [
           ...commonExts,
-          readOnlyCompartment.current.of(reviewMode ? [EditorState.readOnly.of(true), reviewCursorTheme] : []),
           reviewDecoField,
           reviewLineDecoField,
-          hoverDecoCompartment.current.of([]),
-          reviewGutter,
-          hoverTracker,
+          commentGutter,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               onChangeRef.current(update.state.doc.toString())
@@ -345,14 +382,35 @@ function MergeViewEditor({
       },
       parent: el,
       collapseUnchanged: { margin: 3, minSize: 6 },
+      diffConfig: { scanLimit: 1e9 },
       highlightChanges: true,
       gutter: true,
     })
 
     mergeViewRef.current = view
 
+    // Line-hover tracker: show "+" gutter marker for the hovered line
+    let hoveredGutterEl: HTMLElement | null = null
+    const clearHover = () => {
+      if (hoveredGutterEl) { hoveredGutterEl.classList.remove('cm-gutter-line-hover'); hoveredGutterEl = null }
+    }
+    const onMouseMove = (e: MouseEvent) => {
+      const els = view.b.dom.querySelectorAll<HTMLElement>('.cm-comment-gutter .cm-gutterElement')
+      let found: HTMLElement | null = null
+      for (const gel of els) {
+        const r = gel.getBoundingClientRect()
+        if (e.clientY >= r.top && e.clientY < r.bottom) { found = gel; break }
+      }
+      if (found === hoveredGutterEl) return
+      clearHover()
+      if (found) { found.classList.add('cm-gutter-line-hover'); hoveredGutterEl = found }
+    }
+    view.b.dom.addEventListener('mousemove', onMouseMove)
+    view.b.dom.addEventListener('mouseleave', clearHover)
+
     return () => {
-      // Flush relocated positions to store on unmount
+      view.b.dom.removeEventListener('mousemove', onMouseMove)
+      view.b.dom.removeEventListener('mouseleave', clearHover)
       flushRelocations()
       view.destroy()
       mergeViewRef.current = null
@@ -406,24 +464,6 @@ function MergeViewEditor({
       view.b.dispatch({ changes: { from: 0, to: view.b.state.doc.length, insert: modified } })
     }
   }, [original, modified])
-
-  // Update readOnly based on reviewMode
-  useEffect(() => {
-    const view = mergeViewRef.current
-    if (!view) return
-    view.b.dispatch({
-      effects: readOnlyCompartment.current.reconfigure(
-        reviewMode ? [EditorState.readOnly.of(true), reviewCursorTheme] : []
-      ),
-    })
-    if (!reviewMode) {
-      // Flush relocated positions when leaving review mode
-      flushRelocations()
-      hoveredLineRef.current = null
-      view.b.dispatch({ effects: hoverDecoCompartment.current.reconfigure([]) })
-      setActiveCommentLine(null)
-    }
-  }, [reviewMode, flushRelocations])
 
   // Build & dispatch review decorations only when comment set or activeCommentLine changes
   useEffect(() => {
@@ -529,7 +569,6 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
     onChange,
     activeFile: _activeFile,
     onActiveFileChange,
-    reviewMode = false,
     theme: _theme,
   }, ref) {
     const [fileDataMap, setFileDataMap] = useState<Record<string, FileData>>({})
@@ -634,7 +673,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
     return (
       <div ref={containerRef} id="cm-diff-scroll" style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
         <style dangerouslySetInnerHTML={{ __html: MERGE_VIEW_STYLES }} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           {sortedChanges.map((change) => {
             const fileData = fileDataMap[change.path]
             if (!fileData) return null
@@ -654,32 +693,20 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
                 ref={(el) => { fileRefs.current[change.path] = el }}
                 data-file-path={change.path}
               >
-                {/* Sticky file header */}
+                {/* Sticky file header — elevated pill style */}
                 <div
                   onClick={() => toggleCollapse(change.path)}
-                  style={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 12px',
-                    background: 'var(--sidebar)',
-                    borderBottom: '1px solid var(--edge)',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                  }}
+                  className="sticky top-0 z-20 flex items-center gap-2 h-[38px] px-3 bg-elevated border-b border-edge-active cursor-pointer select-none shadow-[0_1px_3px_rgba(0,0,0,0.15),0_0_0_1px_rgba(255,255,255,0.03)_inset] hover:bg-hover/50 transition-colors"
                 >
                   {isCollapsed
-                    ? <ChevronRight size={14} style={{ color: 'var(--fg-secondary)' }} />
-                    : <ChevronDown size={14} style={{ color: 'var(--fg-secondary)' }} />
+                    ? <ChevronRight size={13} className="text-fg-tertiary" />
+                    : <ChevronDown size={13} className="text-fg-tertiary" />
                   }
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: statusColor }}>{statusIcon}</span>
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--fg-secondary)' }}>{change.path}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'monospace', display: 'flex', gap: 6 }}>
-                    {stats.deletions > 0 && <span style={{ color: '#f87171' }}>-{stats.deletions}</span>}
-                    {stats.additions > 0 && <span style={{ color: '#4ade80' }}>+{stats.additions}</span>}
+                  <span className="text-[12px] font-mono font-bold" style={{ color: statusColor }}>{statusIcon}</span>
+                  <span className="text-[12px] font-mono font-medium text-fg tracking-tight">{change.path}</span>
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] font-mono font-semibold tabular-nums">
+                    {stats.deletions > 0 && <span className="text-status-red">-{stats.deletions}</span>}
+                    {stats.additions > 0 && <span className="text-status-green">+{stats.additions}</span>}
                   </span>
                 </div>
 
@@ -694,7 +721,6 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
                     onDeleteComment={onDeleteComment}
                     onRelocateComments={onRelocateComments}
                     existingComments={commentsByFile[change.path] ?? []}
-                    reviewMode={reviewMode}
                   />
                 )}
               </div>

@@ -37,23 +37,21 @@ export function StatusBar({ branch, fileCount, commentCount, onSubmit }: {
         <span>{commentCount} comment{commentCount !== 1 ? 's' : ''}</span>
       </div>
       {commentCount > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-fg-tertiary">
-            <kbd className="inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 rounded-[5px] bg-hover border border-edge-active text-[12px] font-medium text-fg font-mono shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.1)]">
+        <button
+          onClick={onSubmit}
+          className="inline-flex items-center gap-2.5 h-[34px] px-3.5 rounded-2xl border border-edge-active bg-elevated overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.2),0_0_0_1px_rgba(255,255,255,0.03)_inset] hover:shadow-[0_2px_6px_rgba(0,0,0,0.25),0_0_0_1px_rgba(255,255,255,0.06)_inset] hover:bg-hover/50 active:scale-[0.97] transition-all cursor-pointer"
+        >
+          <Send size={12} strokeWidth={2.5} className="text-accent" />
+          <span className="text-[12px] font-semibold tracking-tight text-accent">Submit Review</span>
+          <span className="flex items-center gap-1 ml-0.5">
+            <kbd className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-[4px] bg-hover/60 border border-edge text-[10px] font-medium text-fg-secondary font-mono leading-none">
               {isMac ? '⌘' : 'Ctrl'}
             </kbd>
-            <kbd className="inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 rounded-[5px] bg-hover border border-edge-active text-[12px] font-medium text-fg font-mono shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.1)]">
+            <kbd className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-[4px] bg-hover/60 border border-edge text-[10px] font-medium text-fg-secondary font-mono leading-none">
               ↵
             </kbd>
-          </div>
-          <button
-            onClick={onSubmit}
-            className="flex items-center gap-1.5 h-[26px] px-2.5 rounded-full bg-accent text-base text-[11px] font-semibold tracking-tight cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
-          >
-            <Send size={11} strokeWidth={2} />
-            <span>Submit Review</span>
-          </button>
-        </div>
+          </span>
+        </button>
       )}
     </div>
   )
