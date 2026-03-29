@@ -134,18 +134,38 @@ export const diffTheme = EditorView.theme({
   '.cm-diff-inserted-text': {
     backgroundColor: 'var(--diff-inserted-text)',
   },
+  // Spacer void indicator — diagonal stripe pattern
+  '.cm-diff-spacer': {
+    background: 'repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(255,255,255,0.04) 3px, rgba(255,255,255,0.04) 4px)',
+  },
   // Gutter row backgrounds for diff lines
   '.cm-gutter-diff-deleted': {
     backgroundColor: 'var(--diff-deleted-bg)',
   },
+  '.cm-gutter-diff-deleted .cm-gutterElement': {
+    borderLeft: '2px solid var(--diff-deleted-border)',
+    color: 'var(--diff-deleted-border)',
+  },
   '.cm-gutter-diff-inserted': {
     backgroundColor: 'var(--diff-inserted-bg)',
+  },
+  '.cm-gutter-diff-inserted .cm-gutterElement': {
+    borderLeft: '2px solid var(--diff-inserted-border)',
+    color: 'var(--diff-inserted-border)',
   },
   '.cm-gutter-diff-insertion-point': {
     backgroundColor: 'var(--diff-inserted-bg)',
   },
+  '.cm-gutter-diff-insertion-point .cm-gutterElement': {
+    borderLeft: '2px solid var(--diff-inserted-border)',
+    color: 'var(--diff-inserted-border)',
+  },
   '.cm-gutter-diff-deletion-point': {
     backgroundColor: 'var(--diff-deleted-bg)',
+  },
+  '.cm-gutter-diff-deletion-point .cm-gutterElement': {
+    borderLeft: '2px solid var(--diff-deleted-border)',
+    color: 'var(--diff-deleted-border)',
   },
   '.cm-revert-gutter': {
     width: '24px',

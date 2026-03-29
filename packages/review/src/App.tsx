@@ -19,8 +19,10 @@ import { CommentsPanel } from './components/CommentsPanel'
 import { ThemePanel } from './components/ThemePanel'
 import { PanelHeader } from './components/PanelHeader'
 import { StatusBar } from './components/StatusBar'
+import { EngineToggle } from './components/EngineToggle'
 import { SubmittedScreen } from './components/SubmittedScreen'
 import { PierreDiffView, type PierreDiffViewHandle } from './components/PierreDiffView'
+import { CodeMirrorDiffView, type CodeMirrorDiffViewHandle } from './components/CodeMirrorDiffView'
 
 function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange: (name: PaletteName) => void }) {
   const [changes, setChanges] = useState<FileChange[]>([])
@@ -29,14 +31,17 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const [submitted, setSubmitted] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
+  const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('codemirror')
   const revertedFiles = useRef(new Set<string>())
   const diffViewRef = useRef<PierreDiffViewHandle>(null)
+  const cmDiffViewRef = useRef<CodeMirrorDiffViewHandle>(null)
 
   const { palette } = useTheme()
 
   const {
     addComment,
     removeComment,
+    relocateComments,
     commentsByAgent,
     submitReview,
     clearSubmitted,
@@ -98,6 +103,11 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const handleDeleteComment = useCallback(
     (id: string) => removeComment(REVIEW_ID, id),
     [removeComment]
+  )
+
+  const handleRelocateComments = useCallback(
+    (moves: Array<{ id: string; lineNumber: number }>) => relocateComments(REVIEW_ID, moves),
+    [relocateComments]
   )
 
   const handleSubmit = useCallback(async () => {
@@ -199,12 +209,12 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
         <div className="flex-1 min-h-0">
           {sidePanel === 'files' && (
-            <FileTreePanel tree={fileTree} onFileClick={(path) => diffViewRef.current?.scrollToFile(path)} commentCounts={commentCounts} />
+            <FileTreePanel tree={fileTree} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
           )}
           {sidePanel === 'comments' && (
             <CommentsPanel
               comments={pendingComments}
-              onCommentClick={(filePath) => diffViewRef.current?.scrollToFile(filePath)}
+              onCommentClick={(filePath) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(filePath)}
             />
           )}
           {sidePanel === 'theme' && (
@@ -215,20 +225,37 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
       {/* Main diff area */}
       <div className="flex-1 min-w-0 flex flex-col">
+        <EngineToggle engine={diffEngine} onEngineChange={setDiffEngine} />
+
         {/* Diff viewer — virtualized multi-file scroll */}
         <div className="flex-1 min-h-0 relative bg-base overflow-hidden">
           <div className="absolute inset-0">
-            <PierreDiffView
-              ref={diffViewRef}
-              changes={changes}
-              commentsByFile={commentsByFile}
-              onComment={handleComment}
-              onDeleteComment={handleDeleteComment}
-              onChange={handleChange}
-              activeFile={activeFile}
-              onActiveFileChange={selectFile}
-              theme={palette.mode}
-            />
+            {diffEngine === 'pierre' ? (
+              <PierreDiffView
+                ref={diffViewRef}
+                changes={changes}
+                commentsByFile={commentsByFile}
+                onComment={handleComment}
+                onDeleteComment={handleDeleteComment}
+                onChange={handleChange}
+                activeFile={activeFile}
+                onActiveFileChange={selectFile}
+                theme={palette.mode}
+              />
+            ) : (
+              <CodeMirrorDiffView
+                ref={cmDiffViewRef}
+                changes={changes}
+                commentsByFile={commentsByFile}
+                onComment={handleComment}
+                onDeleteComment={handleDeleteComment}
+                onRelocateComments={handleRelocateComments}
+                onChange={handleChange}
+                activeFile={activeFile}
+                onActiveFileChange={selectFile}
+                theme={palette.mode}
+              />
+            )}
           </div>
         </div>
 

@@ -17,6 +17,7 @@ interface ReviewState {
   addComment: (agentId: string, filePath: string, lineNumber: number, text: string) => void;
   removeComment: (agentId: string, commentId: string) => void;
   updateComment: (agentId: string, commentId: string, text: string) => void;
+  relocateComments: (agentId: string, moves: Array<{ id: string; lineNumber: number }>) => void;
   setReviewMode: (agentId: string, enabled: boolean) => void;
   toggleReviewMode: (agentId: string) => void;
   submitReview: (agentId: string) => ReviewComment[];
@@ -68,6 +69,21 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
           [agentId]: existing.map((c) =>
             c.id === commentId ? { ...c, text } : c
           ),
+        },
+      };
+    }),
+
+  relocateComments: (agentId, moves) =>
+    set((state) => {
+      const existing = state.commentsByAgent[agentId] ?? [];
+      const moveMap = new Map(moves.map(m => [m.id, m.lineNumber]));
+      return {
+        commentsByAgent: {
+          ...state.commentsByAgent,
+          [agentId]: existing.map((c) => {
+            const newLine = moveMap.get(c.id);
+            return newLine != null && newLine !== c.lineNumber ? { ...c, lineNumber: newLine } : c;
+          }),
         },
       };
     }),
