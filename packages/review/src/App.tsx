@@ -43,6 +43,8 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     removeComment,
     relocateComments,
     markUserEdited,
+    getUserEditedFiles,
+    clearUserEdits,
     commentsByAgent,
     submitReview,
     clearSubmitted,
@@ -115,8 +117,9 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const handleSubmit = useCallback(async () => {
     const comments = submitReview(REVIEW_ID)
     const reverted = revertedFiles.current
+    const userEdited = getUserEditedFiles(REVIEW_ID)
 
-    if (comments.length === 0 && reverted.size === 0) return
+    if (comments.length === 0 && reverted.size === 0 && userEdited.length === 0) return
 
     const grouped = comments.reduce<Record<string, typeof comments>>(
       (acc, c) => {
@@ -151,6 +154,13 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
       }
     }
 
+    if (userEdited.length > 0) {
+      markdown += '\n## User-edited files\nThe following files were manually edited by the user in the review UI. These changes are intentional — do not overwrite or revert them:\n'
+      for (const file of userEdited) {
+        markdown += `- ${file}\n`
+      }
+    }
+
     for (const [file, fileComments] of Object.entries(grouped)) {
       markdown += `\n## ${file}\n`
       const lines = fileContents[file]
@@ -178,9 +188,10 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     await window.review.submit(markdown)
 
     clearSubmitted(REVIEW_ID)
+    clearUserEdits(REVIEW_ID)
     setSubmitted(true)
     setTimeout(() => window.review.quit(), 1000)
-  }, [submitReview, clearSubmitted])
+  }, [submitReview, clearSubmitted, getUserEditedFiles, clearUserEdits])
 
   if (submitted) {
     return <SubmittedScreen />
