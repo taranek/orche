@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef, memo, forwardRef, useImperativeHandle } from 'react'
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ExistingComment } from '@orche/shared'
 import type { FileChange } from '../types'
 import { DiffFileHeader } from './DiffFileHeader'
@@ -51,7 +52,7 @@ const EMPTY_STATE = (
 const FileDiffItem = memo(function FileDiffItem({
   change, fileData, isCollapsed, onToggleCollapse,
   onChange, onComment, onDeleteComment, onRelocateComments, existingComments,
-  setRef,
+  onInView,
 }: {
   change: FileChange
   fileData: FileData
@@ -62,19 +63,36 @@ const FileDiffItem = memo(function FileDiffItem({
   onDeleteComment: (id: string) => void
   onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
   existingComments: ExistingComment[]
-  setRef: (el: HTMLDivElement | null) => void
+  onInView: (path: string) => void
 }) {
   const stats = computeStats(fileData.original, fileData.modified)
+  const headerRef = useRef<HTMLDivElement>(null)
+
+  // Report when this file's header crosses the top of the viewport
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) onInView(change.path)
+      },
+      { rootMargin: '0px 0px -90% 0px', threshold: 0 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [change.path, onInView])
 
   return (
-    <div ref={setRef} data-file-path={change.path}>
-      <DiffFileHeader
-        path={change.path}
-        status={change.status}
-        stats={stats}
-        isCollapsed={isCollapsed}
-        onClick={onToggleCollapse}
-      />
+    <div data-file-path={change.path}>
+      <div ref={headerRef}>
+        <DiffFileHeader
+          path={change.path}
+          status={change.status}
+          stats={stats}
+          isCollapsed={isCollapsed}
+          onClick={onToggleCollapse}
+        />
+      </div>
 
       {!isCollapsed ? (
         <MergeViewEditor
@@ -106,16 +124,29 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
   }, ref) {
     const [fileDataMap, setFileDataMap] = useState<Record<string, FileData>>({})
     const [collapsedFiles, setCollapsedFiles] = useState<Record<string, boolean>>({})
-    const fileRefs = useRef<Record<string, HTMLDivElement | null>>({})
-    const containerRef = useRef<HTMLDivElement>(null)
+    const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
+    const virtuosoRef = useRef<VirtuosoHandle>(null)
+
+    const sortedChanges = useMemo(
+      () => [...changes].sort((a, b) => a.path.localeCompare(b.path)),
+      [changes]
+    )
+
+    const loadedItems = useMemo(
+      () => sortedChanges.filter(c => fileDataMap[c.path]),
+      [sortedChanges, fileDataMap]
+    )
 
     useImperativeHandle(ref, () => ({
       scrollToFile: (path: string) => {
-        const el = fileRefs.current[path]
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        const index = loadedItems.findIndex(c => c.path === path)
+        if (index >= 0) {
+          virtuosoRef.current?.scrollToIndex({ index, align: 'start', behavior: 'smooth' })
+        }
       },
     }))
 
+    // Load file contents
     useEffect(() => {
       let cancelled = false
 
@@ -157,54 +188,50 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
       return () => { cancelled = true }
     }, [changes])
 
-    const sortedChanges = useMemo(
-      () => [...changes].sort((a, b) => a.path.localeCompare(b.path)),
-      [changes]
-    )
-
-    useEffect(() => {
-      const container = containerRef.current
-      if (!container) return
-
-      const onScroll = () => {
-        const containerTop = container.getBoundingClientRect().top
-        let topFile: string | null = null
-
-        for (const change of sortedChanges) {
-          const el = fileRefs.current[change.path]
-          if (!el) continue
-          const top = el.getBoundingClientRect().top - containerTop
-          if (top <= 10) {
-            topFile = change.path
-          } else {
-            if (!topFile) topFile = change.path
-            break
-          }
-        }
-
-        if (topFile) onActiveFileChange(topFile)
-      }
-
-      container.addEventListener('scroll', onScroll, { passive: true })
-      return () => container.removeEventListener('scroll', onScroll)
-    }, [sortedChanges, onActiveFileChange])
-
     const toggleCollapse = useCallback((path: string) => {
       setCollapsedFiles((prev) => ({ ...prev, [path]: !prev[path] }))
     }, [])
 
+    const handleFileInView = useCallback((path: string) => {
+      setActiveFilePath(path)
+      onActiveFileChange(path)
+    }, [onActiveFileChange])
+
+
     if (changes.length === 0) return EMPTY_STATE
 
+    // Data for sticky header overlay
+    const stickyChange = activeFilePath ? loadedItems.find(c => c.path === activeFilePath) : loadedItems[0]
+    const stickyFileData = stickyChange ? fileDataMap[stickyChange.path] : undefined
+    const stickyStats = stickyFileData ? computeStats(stickyFileData.original, stickyFileData.modified) : undefined
+
     return (
-      <div ref={containerRef} id="cm-diff-scroll" style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {sortedChanges.map((change) => {
+      <div className="h-full relative" id="cm-diff-scroll">
+        {/* Sticky file header overlay */}
+        {stickyChange && stickyStats && (
+          <div className="absolute top-0 left-0 right-0 z-30">
+            <DiffFileHeader
+              path={stickyChange.path}
+              status={stickyChange.status}
+              stats={stickyStats}
+              isCollapsed={collapsedFiles[stickyChange.path] ?? false}
+              onClick={() => toggleCollapse(stickyChange.path)}
+            />
+          </div>
+        )}
+
+        <Virtuoso
+          ref={virtuosoRef}
+          totalCount={loadedItems.length}
+          overscan={1000}
+          className="h-full"
+          itemContent={(index) => {
+            const change = loadedItems[index]
             const fileData = fileDataMap[change.path]
             if (!fileData) return null
 
             return (
               <FileDiffItem
-                key={change.path}
                 change={change}
                 fileData={fileData}
                 isCollapsed={collapsedFiles[change.path] ?? false}
@@ -214,11 +241,11 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
                 onDeleteComment={onDeleteComment}
                 onRelocateComments={onRelocateComments}
                 existingComments={commentsByFile[change.path] ?? EMPTY_COMMENTS}
-                setRef={(el) => { fileRefs.current[change.path] = el }}
+                onInView={handleFileInView}
               />
             )
-          })}
-        </div>
+          }}
+        />
       </div>
     )
   }
