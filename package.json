@@ -1,6 +1,6 @@
 {
   "name": "orche",
-  "private": true,
+  "private": false,
   "version": "0.0.2",
   "description": "Orchestrate multiple agents across git worktrees with a code review UI",
   "packageManager": "pnpm@10.17.1",
