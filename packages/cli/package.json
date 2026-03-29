@@ -1,6 +1,6 @@
 {
   "name": "@taranek/orche",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "type": "module",
   "bin": {
     "orche": "./dist/cli.js"
