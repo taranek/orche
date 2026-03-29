@@ -5,17 +5,18 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { MergeView } from '@codemirror/merge'
-import { EditorView, Decoration, gutter, type BlockInfo } from '@codemirror/view'
+import { EditorView, gutter, type BlockInfo } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import {
   baseExtensions, getLanguageExtension, diffTheme,
   type ExistingComment,
-  InlineComment, CommentInput, CommentBlockWidget, InputBlockWidget,
+  InlineComment, CommentInput, CommentBlockWidget,
 } from '@orche/shared'
 import {
-  reviewDecoField, reviewLineDecoField, setReviewDecos,
+  reviewDecoField, reviewLineDecoField,
   addCommentMarkerInstance, commentDotMarkerInstance,
 } from './review-extensions'
+import { useSyncDocuments, useReviewDecorations } from './useMergeViewSync'
 
 export interface MergeViewEditorProps {
   original: string
@@ -34,7 +35,6 @@ export function MergeViewEditor({
 }: MergeViewEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mergeViewRef = useRef<MergeView | null>(null)
-  const installedCommentIdsRef = useRef<string>('')
 
   const callbacksRef = useRef({ onChange, onComment, onDeleteComment, onRelocateComments })
   callbacksRef.current = { onChange, onComment, onDeleteComment, onRelocateComments }
@@ -50,8 +50,6 @@ export function MergeViewEditor({
   commentLineSetRef.current = commentLineSet
 
   const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null)
-  const [commentWidgetDoms, setCommentWidgetDoms] = useState<Map<string, HTMLDivElement>>(new Map())
-  const [inputWidgetDom, setInputWidgetDom] = useState<HTMLDivElement | null>(null)
 
   // Create MergeView on mount
   useEffect(() => {
@@ -169,71 +167,8 @@ export function MergeViewEditor({
     if (moves.length) callbacksRef.current.onRelocateComments(moves)
   }, [])
 
-  // Update documents when props change
-  useEffect(() => {
-    const view = mergeViewRef.current
-    if (!view) return
-    const currentA = view.a.state.doc.toString()
-    const currentB = view.b.state.doc.toString()
-    if (currentA !== original) {
-      view.a.dispatch({ changes: { from: 0, to: view.a.state.doc.length, insert: original } })
-    }
-    if (currentB !== modified) {
-      view.b.dispatch({ changes: { from: 0, to: view.b.state.doc.length, insert: modified } })
-    }
-  }, [original, modified])
-
-  // Build & dispatch review decorations only when comment set or activeCommentLine changes
-  useEffect(() => {
-    const view = mergeViewRef.current
-    if (!view) return
-    const b = view.b
-    const comments = existingComments
-    const inputLine = activeCommentLine
-
-    const commentIds = comments?.map(c => c.id).sort().join(',') ?? ''
-    const inputKey = inputLine != null ? `|input-${inputLine}` : ''
-    const decoKey = commentIds + inputKey
-    if (decoKey === installedCommentIdsRef.current) return
-    installedCommentIdsRef.current = decoKey
-
-    const widgetSpecs: Array<{ pos: number; widget: CommentBlockWidget | InputBlockWidget }> = []
-    if (comments?.length) {
-      for (const c of [...comments].sort((a, cb) => a.lineNumber - cb.lineNumber)) {
-        if (c.lineNumber <= b.state.doc.lines) {
-          widgetSpecs.push({ pos: b.state.doc.line(c.lineNumber).to, widget: new CommentBlockWidget(c.id) })
-        }
-      }
-    }
-    if (inputLine !== null && inputLine <= b.state.doc.lines) {
-      widgetSpecs.push({ pos: b.state.doc.line(inputLine).to, widget: new InputBlockWidget(`input-${inputLine}`) })
-    }
-    widgetSpecs.sort((a, bb) => a.pos - bb.pos)
-
-    const widgetDecos = widgetSpecs.length > 0
-      ? Decoration.set(widgetSpecs.map(w => Decoration.widget({ widget: w.widget, block: true, side: 1 }).range(w.pos)))
-      : Decoration.none
-    const lineDecos = comments?.length
-      ? Decoration.set(
-          comments
-            .filter(c => c.lineNumber <= b.state.doc.lines)
-            .map(c => Decoration.line({ class: 'cm-review-commented-line' }).range(b.state.doc.line(c.lineNumber).from))
-            .sort((a, bb) => a.from - bb.from)
-        )
-      : Decoration.none
-
-    b.dispatch({ effects: setReviewDecos.of({ widgets: widgetDecos, lineDecos }) })
-
-    requestAnimationFrame(() => {
-      const newCommentDoms = new Map<string, HTMLDivElement>()
-      b.dom.querySelectorAll<HTMLDivElement>('[data-comment-widget-id]').forEach((el: HTMLDivElement) => {
-        newCommentDoms.set(el.dataset.commentWidgetId!, el)
-      })
-      setCommentWidgetDoms(newCommentDoms)
-      const inputEl = b.dom.querySelector<HTMLDivElement>('[data-input-widget-key]')
-      setInputWidgetDom(inputEl)
-    })
-  }, [existingComments, activeCommentLine])
+  useSyncDocuments(mergeViewRef, original, modified)
+  const { commentWidgetDoms, inputWidgetDom } = useReviewDecorations(mergeViewRef, existingComments, activeCommentLine)
 
   const handleSubmitComment = useCallback((text: string) => {
     setActiveCommentLine((line) => {
