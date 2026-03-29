@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, memo, forwardRef, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
 import { MergeView } from '@codemirror/merge'
 import { EditorView, Decoration, GutterMarker, gutter, type BlockInfo } from '@codemirror/view'
@@ -8,14 +8,17 @@ import {
   type ExistingComment,
   InlineComment, CommentInput, CommentBlockWidget, InputBlockWidget,
 } from '@orche/shared'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { FileChange } from '../types'
+import { DiffFileHeader } from './DiffFileHeader'
 import './merge-view-styles.css'
 
 interface FileData {
   original: string
   modified: string
 }
+
+/** Hoisted default to avoid new array reference on every render (rerender-memo-with-default-value) */
+const EMPTY_COMMENTS: ExistingComment[] = []
 
 export interface CodeMirrorDiffViewHandle {
   scrollToFile: (path: string) => void
@@ -105,10 +108,7 @@ const addCommentMarkerInstance = new AddCommentMarker()
 const commentDotMarkerInstance = new CommentDotMarker()
 
 /** MergeView wrapper — uses @codemirror/merge for native side-by-side alignment */
-function MergeViewEditor({
-  original, modified, filePath, onChange,
-  onComment, onDeleteComment, onRelocateComments, existingComments,
-}: {
+interface MergeViewEditorProps {
   original: string
   modified: string
   filePath: string
@@ -117,20 +117,30 @@ function MergeViewEditor({
   onDeleteComment: (id: string) => void
   onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
   existingComments: ExistingComment[]
-}) {
+}
+
+function MergeViewEditor({
+  original, modified, filePath, onChange,
+  onComment, onDeleteComment, onRelocateComments, existingComments,
+}: MergeViewEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mergeViewRef = useRef<MergeView | null>(null)
-  const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
-  const onCommentRef = useRef(onComment)
-  onCommentRef.current = onComment
-  const onDeleteCommentRef = useRef(onDeleteComment)
-  onDeleteCommentRef.current = onDeleteComment
-  const onRelocateCommentsRef = useRef(onRelocateComments)
-  onRelocateCommentsRef.current = onRelocateComments
+  const installedCommentIdsRef = useRef<string>('')
+
+  // Consolidate callback refs into a single object (advanced-event-handler-refs)
+  const callbacksRef = useRef({ onChange, onComment, onDeleteComment, onRelocateComments })
+  callbacksRef.current = { onChange, onComment, onDeleteComment, onRelocateComments }
+
   const existingCommentsRef = useRef(existingComments)
   existingCommentsRef.current = existingComments
-  const installedCommentIdsRef = useRef<string>('')
+
+  // O(1) lookup for comment lines in gutter (js-set-map-lookups)
+  const commentLineSet = useMemo(
+    () => new Set(existingComments.map(c => c.lineNumber)),
+    [existingComments]
+  )
+  const commentLineSetRef = useRef(commentLineSet)
+  commentLineSetRef.current = commentLineSet
 
   const [activeCommentLine, setActiveCommentLine] = useState<number | null>(null)
   const [commentWidgetDoms, setCommentWidgetDoms] = useState<Map<string, HTMLDivElement>>(new Map())
@@ -151,8 +161,7 @@ function MergeViewEditor({
       class: 'cm-comment-gutter',
       lineMarker: (view: EditorView, line: BlockInfo) => {
         const lineNum = view.state.doc.lineAt(line.from).number
-        const hasComment = existingCommentsRef.current?.some(c => c.lineNumber === lineNum)
-        return hasComment ? commentDotMarkerInstance : addCommentMarkerInstance
+        return commentLineSetRef.current.has(lineNum) ? commentDotMarkerInstance : addCommentMarkerInstance
       },
       domEventHandlers: {
         click: (view: EditorView, line: BlockInfo) => {
@@ -179,7 +188,7 @@ function MergeViewEditor({
           commentGutter,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
-              onChangeRef.current(update.state.doc.toString())
+              callbacksRef.current.onChange(update.state.doc.toString())
             }
           }),
         ],
@@ -250,7 +259,7 @@ function MergeViewEditor({
         }
       }
     }
-    if (moves.length) onRelocateCommentsRef.current(moves)
+    if (moves.length) callbacksRef.current.onRelocateComments(moves)
   }, [])
 
   // Update documents when props change
@@ -323,27 +332,28 @@ function MergeViewEditor({
     })
   }, [existingComments, activeCommentLine])
 
+  // Use functional setState to avoid activeCommentLine dependency (rerender-functional-setstate)
   const handleSubmitComment = useCallback((text: string) => {
-    if (activeCommentLine !== null && onCommentRef.current) {
-      onCommentRef.current(activeCommentLine, text)
-    }
-    setActiveCommentLine(null)
-  }, [activeCommentLine])
+    setActiveCommentLine((line) => {
+      if (line !== null) callbacksRef.current.onComment(line, text)
+      return null
+    })
+  }, [])
 
   const handleCancelComment = useCallback(() => setActiveCommentLine(null), [])
 
   const existingForLine = activeCommentLine !== null
-    ? existingCommentsRef.current?.find((c) => c.lineNumber === activeCommentLine)
+    ? existingComments.find((c) => c.lineNumber === activeCommentLine)
     : null
 
   return (
     <>
       <div ref={containerRef} />
-      {existingComments?.map(c => {
+      {existingComments.map(c => {
         const dom = commentWidgetDoms.get(c.id)
         if (!dom) return null
         return createPortal(
-          <InlineComment key={c.id} comment={c} onDelete={(id) => onDeleteCommentRef.current?.(id)} />,
+          <InlineComment key={c.id} comment={c} onDelete={(id) => callbacksRef.current.onDeleteComment(id)} />,
           dom
         )
       })}
@@ -362,6 +372,58 @@ function MergeViewEditor({
     </>
   )
 }
+
+// Hoisted empty state (rendering-hoist-jsx)
+const EMPTY_STATE = (
+  <div className="h-full flex items-center justify-center text-fg-secondary text-sm">
+    No files to review
+  </div>
+)
+
+/** Individual file diff — memoized to prevent re-renders when sibling files change (rerender-memo) */
+const FileDiffItem = memo(function FileDiffItem({
+  change, fileData, isCollapsed, onToggleCollapse,
+  onChange, onComment, onDeleteComment, onRelocateComments, existingComments,
+  setRef,
+}: {
+  change: FileChange
+  fileData: FileData
+  isCollapsed: boolean
+  onToggleCollapse: () => void
+  onChange: (value: string) => void
+  onComment: (line: number, text: string) => void
+  onDeleteComment: (id: string) => void
+  onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
+  existingComments: ExistingComment[]
+  setRef: (el: HTMLDivElement | null) => void
+}) {
+  const stats = computeStats(fileData.original, fileData.modified)
+
+  return (
+    <div ref={setRef} data-file-path={change.path}>
+      <DiffFileHeader
+        path={change.path}
+        status={change.status}
+        stats={stats}
+        isCollapsed={isCollapsed}
+        onClick={onToggleCollapse}
+      />
+
+      {!isCollapsed ? (
+        <MergeViewEditor
+          original={fileData.original}
+          modified={fileData.modified}
+          filePath={change.path}
+          onChange={onChange}
+          onComment={onComment}
+          onDeleteComment={onDeleteComment}
+          onRelocateComments={onRelocateComments}
+          existingComments={existingComments}
+        />
+      ) : null}
+    </div>
+  )
+})
 
 export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirrorDiffViewProps>(
   function CodeMirrorDiffView({
@@ -387,7 +449,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
       },
     }))
 
-    // Load file contents
+    // Load file contents (async-parallel — already uses Promise.all)
     useEffect(() => {
       let cancelled = false
 
@@ -434,7 +496,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
       [changes]
     )
 
-    // Scroll tracking for active file
+    // Scroll tracking for active file (client-passive-event-listeners — already passive)
     useEffect(() => {
       const container = containerRef.current
       if (!container) return
@@ -466,13 +528,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
       setCollapsedFiles((prev) => ({ ...prev, [path]: !prev[path] }))
     }, [])
 
-    if (changes.length === 0) {
-      return (
-        <div className="h-full flex items-center justify-center text-fg-secondary text-sm">
-          No files to review
-        </div>
-      )
-    }
+    if (changes.length === 0) return EMPTY_STATE
 
     return (
       <div ref={containerRef} id="cm-diff-scroll" style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
@@ -481,52 +537,20 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
             const fileData = fileDataMap[change.path]
             if (!fileData) return null
 
-            const isCollapsed = collapsedFiles[change.path] ?? false
-            const stats = computeStats(fileData.original, fileData.modified)
-            const statusIcon = change.status === 'added' ? '+' : change.status === 'deleted' ? '-' : '~'
-            const statusColor = change.status === 'added'
-              ? '#4ade80'
-              : change.status === 'deleted'
-              ? '#f87171'
-              : '#facc15'
-
             return (
-              <div
+              <FileDiffItem
                 key={change.path}
-                ref={(el) => { fileRefs.current[change.path] = el }}
-                data-file-path={change.path}
-              >
-                {/* Sticky file header — elevated pill style */}
-                <div
-                  onClick={() => toggleCollapse(change.path)}
-                  className="sticky top-0 z-20 flex items-center gap-2 h-[38px] px-3 bg-elevated border-b border-edge-active cursor-pointer select-none shadow-[0_1px_3px_rgba(0,0,0,0.15),0_0_0_1px_rgba(255,255,255,0.03)_inset] hover:bg-hover/50 transition-colors"
-                >
-                  {isCollapsed
-                    ? <ChevronRight size={13} className="text-fg-tertiary" />
-                    : <ChevronDown size={13} className="text-fg-tertiary" />
-                  }
-                  <span className="text-[12px] font-mono font-bold" style={{ color: statusColor }}>{statusIcon}</span>
-                  <span className="text-[12px] font-mono font-medium text-fg tracking-tight">{change.path}</span>
-                  <span className="ml-auto flex items-center gap-1.5 text-[11px] font-mono font-semibold tabular-nums">
-                    {stats.deletions > 0 && <span className="text-status-red">-{stats.deletions}</span>}
-                    {stats.additions > 0 && <span className="text-status-green">+{stats.additions}</span>}
-                  </span>
-                </div>
-
-                {/* MergeView — native side-by-side diff with proper alignment */}
-                {!isCollapsed && (
-                  <MergeViewEditor
-                    original={fileData.original}
-                    modified={fileData.modified}
-                    filePath={change.path}
-                    onChange={(value) => onChange(change.path, value)}
-                    onComment={(line, text) => onComment(change.path, line, text)}
-                    onDeleteComment={onDeleteComment}
-                    onRelocateComments={onRelocateComments}
-                    existingComments={commentsByFile[change.path] ?? []}
-                  />
-                )}
-              </div>
+                change={change}
+                fileData={fileData}
+                isCollapsed={collapsedFiles[change.path] ?? false}
+                onToggleCollapse={() => toggleCollapse(change.path)}
+                onChange={(value) => onChange(change.path, value)}
+                onComment={(line, text) => onComment(change.path, line, text)}
+                onDeleteComment={onDeleteComment}
+                onRelocateComments={onRelocateComments}
+                existingComments={commentsByFile[change.path] ?? EMPTY_COMMENTS}
+                setRef={(el) => { fileRefs.current[change.path] = el }}
+              />
             )
           })}
         </div>
