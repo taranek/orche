@@ -3,7 +3,6 @@ export { InlineComment, CommentInput, ReviewGutterMarker, CommentBlockWidget, In
 export { orcheTheme, orcheSyntaxHighlighting, reviewCursorTheme, diffTheme } from './components/CodeEditor/themes';
 export { baseExtensions } from './components/CodeEditor/baseExtensions';
 export { getLanguageExtension } from './components/CodeEditor/languageExtension';
-export { createResizingWidget } from './components/CodeEditor/diffUtils';
 export type { ExistingComment } from './components/CodeEditor/types';
 
 // UI

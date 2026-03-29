@@ -1,7 +1,18 @@
 import { useRef, useEffect } from 'react';
 import { EditorView, WidgetType, GutterMarker } from '@codemirror/view';
 import type { ExistingComment } from './types';
-import { createResizingWidget } from './diffUtils';
+
+function createResizingWidget(view: EditorView, cssText: string): HTMLDivElement {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = cssText;
+  const ro = new ResizeObserver(() => { view.requestMeasure(); });
+  ro.observe(wrap);
+  const mo = new MutationObserver((_, observer) => {
+    if (!wrap.isConnected) { ro.disconnect(); observer.disconnect(); }
+  });
+  mo.observe(wrap.ownerDocument.body, { childList: true, subtree: true });
+  return wrap;
+}
 
 // Shared card class for comment panels
 const cardClass = 'bg-surface-low border-[0.5px] border-edge-active rounded-[6px] shadow-[0_2px_8px_rgba(0,0,0,0.15),0_1px_2px_rgba(0,0,0,0.1)] font-sans';
