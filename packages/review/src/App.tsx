@@ -42,6 +42,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     addComment,
     removeComment,
     relocateComments,
+    markUserEdited,
     commentsByAgent,
     submitReview,
     clearSubmitted,
@@ -88,9 +89,10 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const handleChange = useCallback(
     (filePath: string, content: string) => {
       revertedFiles.current.add(filePath)
+      markUserEdited(REVIEW_ID, filePath)
       window.review.write(filePath, content)
     },
-    []
+    [markUserEdited]
   )
 
   const handleComment = useCallback(

@@ -85,6 +85,44 @@
   display: none !important;
 }
 
+/* Revert chunk controls — arrow buttons between panes */
+.cm-mergeView .cm-merge-revert {
+  width: 22px !important;
+  background: transparent !important;
+  position: relative !important;
+}
+.cm-mergeView .cm-merge-revert button {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 5px !important;
+  border: 1px solid var(--border-active) !important;
+  background: var(--bg-elevated) !important;
+  color: var(--text-secondary) !important;
+  font-size: 11px !important;
+  line-height: 16px !important;
+  cursor: pointer !important;
+  opacity: 0 !important;
+  transition: opacity 0.12s ease-out !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15) !important;
+  padding: 0 !important;
+  margin-left: 2px !important;
+  margin-top: 8px !important;
+  /* CM sets height to match chunk — center content within it */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.cm-mergeView .cm-merge-revert button.cm-revert-visible {
+  opacity: 0.6 !important;
+}
+.cm-mergeView .cm-merge-revert button.cm-revert-visible:hover,
+.cm-mergeView .cm-merge-revert button:hover {
+  opacity: 1 !important;
+  background: var(--status-red) !important;
+  color: var(--bg-base) !important;
+  border-color: var(--status-red) !important;
+}
+
 /* Collapsed / unchanged lines — matches expandable-pill style */
 .cm-mergeView .cm-collapsedLines {
   display: flex !important;
@@ -166,24 +204,36 @@
   opacity: 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border-active);
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
 }
-/* Show "+" when line is hovered (gutter or content) */
+/* Chat icon inside the pill */
+.cm-comment-gutter-add::after {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  background-color: var(--text-secondary);
+}
+/* Show when line is hovered (gutter or content) */
 .cm-comment-gutter .cm-gutterElement:hover .cm-comment-gutter-add,
 .cm-comment-gutter .cm-gutter-line-hover .cm-comment-gutter-add {
-  opacity: 0.5;
+  opacity: 0.6;
 }
 .cm-comment-gutter .cm-gutterElement:hover .cm-comment-gutter-add:hover,
 .cm-comment-gutter .cm-gutter-line-hover .cm-comment-gutter-add:hover {
   opacity: 1;
   background: var(--accent);
-  color: var(--bg-base);
   border-color: var(--accent);
+}
+.cm-comment-gutter-add:hover::after {
+  background-color: var(--bg-base);
 }
 /* Accent bar for lines with existing comments */
 .cm-comment-gutter-dot {

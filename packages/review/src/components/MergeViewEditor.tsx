@@ -102,34 +102,63 @@ export function MergeViewEditor({
       parent: el,
       collapseUnchanged: { margin: 3, minSize: 6 },
       diffConfig: { scanLimit: 1e9 },
+      revertControls: 'b-to-a',
+      renderRevertControl: () => {
+        const btn = document.createElement('button')
+        btn.textContent = '↩'
+        btn.title = 'Revert this change'
+        return btn
+      },
       highlightChanges: true,
       gutter: true,
     })
 
     mergeViewRef.current = view
 
-    // Line-hover tracker: show "+" gutter marker for the hovered line
+    // Line-hover tracker: show "+" gutter marker and revert button for hovered line
     let hoveredGutterEl: HTMLElement | null = null
+    let hoveredRevertBtn: HTMLElement | null = null
     const clearHover = () => {
       if (hoveredGutterEl) { hoveredGutterEl.classList.remove('cm-gutter-line-hover'); hoveredGutterEl = null }
+      if (hoveredRevertBtn) { hoveredRevertBtn.classList.remove('cm-revert-visible'); hoveredRevertBtn = null }
     }
+    const revertCol = el.querySelector('.cm-merge-revert')
     const onMouseMove = (e: MouseEvent) => {
+      // Comment gutter hover
       const els = view.b.dom.querySelectorAll<HTMLElement>('.cm-comment-gutter .cm-gutterElement')
       let found: HTMLElement | null = null
       for (const gel of els) {
         const r = gel.getBoundingClientRect()
         if (e.clientY >= r.top && e.clientY < r.bottom) { found = gel; break }
       }
-      if (found === hoveredGutterEl) return
-      clearHover()
-      if (found) { found.classList.add('cm-gutter-line-hover'); hoveredGutterEl = found }
+      if (found !== hoveredGutterEl) {
+        if (hoveredGutterEl) hoveredGutterEl.classList.remove('cm-gutter-line-hover')
+        if (found) found.classList.add('cm-gutter-line-hover')
+        hoveredGutterEl = found
+      }
+
+      // Revert button hover — find button whose vertical range contains the cursor
+      if (revertCol) {
+        const btns = revertCol.querySelectorAll<HTMLElement>('button')
+        let foundBtn: HTMLElement | null = null
+        for (const btn of btns) {
+          const r = btn.getBoundingClientRect()
+          if (e.clientY >= r.top && e.clientY < r.bottom) { foundBtn = btn; break }
+        }
+        if (foundBtn !== hoveredRevertBtn) {
+          if (hoveredRevertBtn) hoveredRevertBtn.classList.remove('cm-revert-visible')
+          if (foundBtn) foundBtn.classList.add('cm-revert-visible')
+          hoveredRevertBtn = foundBtn
+        }
+      }
     }
-    view.b.dom.addEventListener('mousemove', onMouseMove)
-    view.b.dom.addEventListener('mouseleave', clearHover)
+    // Listen on the whole MergeView container so both panes trigger it
+    el.addEventListener('mousemove', onMouseMove)
+    el.addEventListener('mouseleave', clearHover)
 
     return () => {
-      view.b.dom.removeEventListener('mousemove', onMouseMove)
-      view.b.dom.removeEventListener('mouseleave', clearHover)
+      el.removeEventListener('mousemove', onMouseMove)
+      el.removeEventListener('mouseleave', clearHover)
       flushRelocations()
       view.destroy()
       mergeViewRef.current = null

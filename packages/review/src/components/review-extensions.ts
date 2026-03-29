@@ -41,7 +41,7 @@ class AddCommentMarker extends GutterMarker {
   toDOM() {
     const el = document.createElement('div')
     el.className = 'cm-comment-gutter-add'
-    el.textContent = '+'
+    el.title = 'Add comment'
     return el
   }
 }

@@ -13,11 +13,16 @@ export interface ReviewComment {
 interface ReviewState {
   commentsByAgent: Record<string, ReviewComment[]>;
   reviewModeByAgent: Record<string, boolean>;
+  /** Files manually edited by the user in the review UI, keyed by agentId */
+  userEditedFiles: Record<string, Set<string>>;
 
   addComment: (agentId: string, filePath: string, lineNumber: number, text: string) => void;
   removeComment: (agentId: string, commentId: string) => void;
   updateComment: (agentId: string, commentId: string, text: string) => void;
   relocateComments: (agentId: string, moves: Array<{ id: string; lineNumber: number }>) => void;
+  markUserEdited: (agentId: string, filePath: string) => void;
+  getUserEditedFiles: (agentId: string) => string[];
+  clearUserEdits: (agentId: string) => void;
   setReviewMode: (agentId: string, enabled: boolean) => void;
   toggleReviewMode: (agentId: string) => void;
   submitReview: (agentId: string) => ReviewComment[];
@@ -28,6 +33,7 @@ interface ReviewState {
 export const useReviewStore = create<ReviewState>()((set, get) => ({
   commentsByAgent: {},
   reviewModeByAgent: {},
+  userEditedFiles: {},
 
   addComment: (agentId, filePath, lineNumber, text) =>
     set((state) => {
@@ -87,6 +93,25 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
         },
       };
     }),
+
+  markUserEdited: (agentId, filePath) =>
+    set((state) => {
+      const existing = state.userEditedFiles[agentId] ?? new Set<string>()
+      if (existing.has(filePath)) return state
+      const next = new Set(existing)
+      next.add(filePath)
+      return { userEditedFiles: { ...state.userEditedFiles, [agentId]: next } }
+    }),
+
+  getUserEditedFiles: (agentId) => {
+    const state = get()
+    return Array.from(state.userEditedFiles[agentId] ?? [])
+  },
+
+  clearUserEdits: (agentId) =>
+    set((state) => ({
+      userEditedFiles: { ...state.userEditedFiles, [agentId]: new Set<string>() },
+    })),
 
   setReviewMode: (agentId, enabled) =>
     set((state) => ({
