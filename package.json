@@ -1,7 +1,7 @@
 {
   "name": "@taranek/orche",
   "private": false,
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Orchestrate multiple agents across git worktrees with a code review UI",
   "packageManager": "pnpm@10.17.1",
   "scripts": {
