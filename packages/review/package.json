@@ -66,6 +66,7 @@
     "motion": "^12.35.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-virtuoso": "^4.18.3",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
