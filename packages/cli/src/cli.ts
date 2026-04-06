@@ -4,6 +4,7 @@ import { readFileSync, existsSync, watch, unlinkSync, writeFileSync, mkdirSync }
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
+import { pruneCommand } from "./prune.js";
 import { getMultiplexer } from "./multiplexer.js";
 import { buildLayout } from "./layout.js";
 import { getReviewBinaryPath } from "./review-manager.js";
@@ -157,11 +158,15 @@ orche — orchestrate agents across git worktrees
 Usage:
   orche start <task>         Start a new session for <task>
   orche review [path]        Open the review UI for a worktree
+  orche prune [--all] [-f]   Remove orche worktrees (interactive multiselect)
 
 Examples:
   orche start fix-auth       Create worktree + session for "fix-auth"
   orche review               Review changes in current directory
   orche review ./worktree    Review changes in a specific worktree
+  orche prune                Pick worktrees to remove
+  orche prune --all          Remove all orche worktrees
+  orche prune --force        Allow removing worktrees with uncommitted changes
 
 Requires a ${CONFIG_NAME} file in the current directory.
 Use ${CONFIG_LOCAL_NAME} for local overrides (not committed).
@@ -179,6 +184,9 @@ async function main(): Promise<void> {
 
   if (subcommand === "start") {
     startSession();
+  } else if (subcommand === "prune") {
+    const repoRoot = getRepoRoot(process.cwd());
+    await pruneCommand(repoRoot, process.argv.slice(3));
   } else if (subcommand === "review") {
     const explicitPath = process.argv[3] && !process.argv[3].startsWith("--")
       ? process.argv[3]

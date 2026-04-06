@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import {
   existsSync,
   readFileSync,
@@ -67,6 +67,62 @@ export function createWorktree(repoPath: string, name: string): WorktreeInfo {
 
   console.log(`  worktree: ${worktreePath} (${branchName})`);
   return { worktreePath, branchName };
+}
+
+export interface OrcheWorktree {
+  worktreePath: string;
+  branch: string | null;
+  dirty: boolean;
+}
+
+const ORCHE_SEGMENT = `${path.sep}.orche${path.sep}worktrees${path.sep}`;
+
+function parseWorktreeList(output: string): { worktreePath: string; branch: string | null }[] {
+  const result: { worktreePath: string; branch: string | null }[] = [];
+  for (const block of output.split(/\n\n+/)) {
+    if (!block.trim()) continue;
+    let worktreePath: string | null = null;
+    let branch: string | null = null;
+    for (const line of block.split("\n")) {
+      if (line.startsWith("worktree ")) worktreePath = line.slice("worktree ".length);
+      else if (line.startsWith("branch ")) branch = line.slice("branch ".length).replace(/^refs\/heads\//, "");
+    }
+    if (worktreePath) result.push({ worktreePath, branch });
+  }
+  return result;
+}
+
+function isWorktreeDirty(worktreePath: string): boolean {
+  try {
+    const out = execFileSync("git", ["status", "--porcelain"], {
+      cwd: worktreePath,
+      encoding: "utf-8",
+    });
+    return out.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export function listOrcheWorktrees(repoPath: string): OrcheWorktree[] {
+  const out = execFileSync("git", ["worktree", "list", "--porcelain"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+  });
+  return parseWorktreeList(out)
+    .filter((w) => w.worktreePath.includes(ORCHE_SEGMENT))
+    .map((w) => ({
+      worktreePath: w.worktreePath,
+      branch: w.branch,
+      dirty: isWorktreeDirty(w.worktreePath),
+    }));
+}
+
+export function removeWorktree(repoPath: string, worktreePath: string, force: boolean): void {
+  const args = ["worktree", "remove"];
+  if (force) args.push("--force");
+  args.push(worktreePath);
+  execFileSync("git", args, { cwd: repoPath, stdio: "inherit" });
 }
 
 function symlinkNodeModules(repoPath: string, worktreePath: string): void {

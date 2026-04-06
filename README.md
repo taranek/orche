@@ -6,6 +6,7 @@ orche is two things:
 
 - **`orche start <task>`** — spins up a tmux/cmux session with your agent, dev server, and any other tools you need, each running in an isolated git worktree so agents never step on each other.
 - **`orche review`** — opens a desktop app to review the agent's changes, add line-level comments, and send feedback directly back into the agent's terminal.
+- **`orche prune`** — interactive multiselect for cleaning up worktrees you no longer need.
 
 ### Typical workflow
 
@@ -67,6 +68,7 @@ Opens the desktop review app for the current worktree.
 ```
 orche start <task>         Start a new session for <task>
 orche review [path]        Open the review UI for a worktree
+orche prune [--all] [-f]   Remove orche worktrees (interactive multiselect)
 ```
 
 ### Examples
@@ -75,7 +77,14 @@ orche review [path]        Open the review UI for a worktree
 orche start fix-auth       # Create worktree + session for "fix-auth"
 orche review               # Review changes in current directory
 orche review ./worktree    # Review changes in a specific worktree
+orche prune                # Pick worktrees to remove
+orche prune --all          # Remove every orche worktree
+orche prune --force        # Remove worktrees even if they have uncommitted changes
 ```
+
+### Pruning worktrees
+
+`orche prune` lists every worktree under `.orche/worktrees/` in an interactive multiselect. Worktrees with uncommitted changes are marked and skipped during removal unless you pass `--force`. Use `--all` to skip the prompt and target every orche worktree at once.
 
 ## Configuration
 
