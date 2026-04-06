@@ -65,6 +65,17 @@ function deliverReview(pendingPath: string): void {
 
 async function runReview(worktreePath: string): Promise<void> {
   const resolvedPath = path.resolve(worktreePath);
+
+  // Refuse to run unless the target is inside a git worktree — otherwise the
+  // review app may try to recursively watch enormous trees (e.g. $HOME).
+  try {
+    execFileSync("git", ["-C", resolvedPath, "rev-parse", "--show-toplevel"], {
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    die(`not a git worktree: ${resolvedPath}`);
+  }
+
   const args = ["--worktree=" + resolvedPath];
 
   console.log(`opening review for ${worktreePath}...`);
