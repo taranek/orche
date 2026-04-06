@@ -70,6 +70,11 @@ const FileDiffItem = memo(function FileDiffItem({
 }) {
   const stats = computeStats(fileData.original, fileData.modified)
   const headerRef = useRef<HTMLDivElement>(null)
+  const lineCount = Math.max(
+    fileData.original.split('\n').length,
+    fileData.modified.split('\n').length,
+  )
+  const isLargeFile = lineCount > LARGE_FILE_LINE_THRESHOLD
 
   // Report when this file's header crosses the top of the viewport
   useEffect(() => {
@@ -93,6 +98,7 @@ const FileDiffItem = memo(function FileDiffItem({
           status={change.status}
           stats={stats}
           isCollapsed={isCollapsed}
+          showCollapsedBadge={isCollapsed && isLargeFile}
           onClick={onToggleCollapse}
         />
       </div>
@@ -226,6 +232,10 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
     const stickyChange = activeFilePath ? loadedItems.find(c => c.path === activeFilePath) : loadedItems[0]
     const stickyFileData = stickyChange ? fileDataMap[stickyChange.path] : undefined
     const stickyStats = stickyFileData ? computeStats(stickyFileData.original, stickyFileData.modified) : undefined
+    const stickyLineCount = stickyFileData
+      ? Math.max(stickyFileData.original.split('\n').length, stickyFileData.modified.split('\n').length)
+      : 0
+    const stickyIsCollapsed = stickyChange ? (collapsedFiles[stickyChange.path] ?? false) : false
 
     return (
       <div className="h-full relative" id="cm-diff-scroll">
@@ -236,7 +246,8 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
               path={stickyChange.path}
               status={stickyChange.status}
               stats={stickyStats}
-              isCollapsed={collapsedFiles[stickyChange.path] ?? false}
+              isCollapsed={stickyIsCollapsed}
+              showCollapsedBadge={stickyIsCollapsed && stickyLineCount > LARGE_FILE_LINE_THRESHOLD}
               onClick={() => toggleCollapse(stickyChange.path)}
             />
           </div>
