@@ -17,11 +17,13 @@ interface DiffFileHeaderProps {
   status: string
   stats: DiffStats
   isCollapsed: boolean
+  /** Show a "Collapsed" badge (e.g. auto-collapsed large files) */
+  showCollapsedBadge?: boolean
   onClick: () => void
 }
 
 export const DiffFileHeader = memo(function DiffFileHeader({
-  path, status, stats, isCollapsed, onClick,
+  path, status, stats, isCollapsed, showCollapsedBadge, onClick,
 }: DiffFileHeaderProps) {
   const { icon: statusIcon, color: statusColor } = getStatusDisplay(status)
 
@@ -36,6 +38,11 @@ export const DiffFileHeader = memo(function DiffFileHeader({
       }
       <span className="text-[12px] font-mono font-bold" style={{ color: statusColor }}>{statusIcon}</span>
       <span className="text-[12px] font-mono font-medium text-fg tracking-tight">{path}</span>
+      {showCollapsedBadge ? (
+        <span className="inline-flex items-center h-[18px] px-1.5 rounded-[4px] bg-elevated border border-edge-active text-[10px] font-semibold uppercase tracking-wide text-fg-tertiary">
+          Collapsed
+        </span>
+      ) : null}
       <span className="ml-auto flex items-center gap-1.5 text-[11px] font-mono font-semibold tabular-nums">
         {stats.deletions > 0 ? <span className="text-status-red">-{stats.deletions}</span> : null}
         {stats.additions > 0 ? <span className="text-status-green">+{stats.additions}</span> : null}
