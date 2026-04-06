@@ -13,6 +13,9 @@ interface FileData {
 
 const EMPTY_COMMENTS: ExistingComment[] = []
 
+/** Auto-collapse files larger than this (line count) — diffing huge files is expensive */
+const LARGE_FILE_LINE_THRESHOLD = 1000
+
 export interface CodeMirrorDiffViewHandle {
   scrollToFile: (path: string) => void
 }
@@ -180,6 +183,25 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
             }
           }
           if (Object.keys(prev).length !== Object.keys(next).length) changed = true
+          return changed ? next : prev
+        })
+
+        // Auto-collapse large files — MergeView diff on 1000+ lines is expensive
+        setCollapsedFiles((prev) => {
+          const next = { ...prev }
+          let changed = false
+          for (const [path, data] of entries) {
+            if (!data) continue
+            if (prev[path] !== undefined) continue // user already toggled, respect it
+            const lineCount = Math.max(
+              data.original.split('\n').length,
+              data.modified.split('\n').length,
+            )
+            if (lineCount > LARGE_FILE_LINE_THRESHOLD) {
+              next[path] = true
+              changed = true
+            }
+          }
           return changed ? next : prev
         })
       }

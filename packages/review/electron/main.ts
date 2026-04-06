@@ -5,6 +5,7 @@ import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import chokidar, { type FSWatcher } from 'chokidar'
 
 const execAsync = promisify(exec)
@@ -20,8 +21,24 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 // CLI args
-const worktreePath = process.argv.find(a => a.startsWith('--worktree='))?.split('=')[1]
+const rawWorktreePath = process.argv.find(a => a.startsWith('--worktree='))?.split('=')[1]
   ?? process.argv[process.argv.length - 1]
+// Git reports paths relative to the repo toplevel regardless of cwd, so resolve
+// the passed-in path to the git toplevel to keep filesystem reads consistent.
+// Works for worktrees, regular clones, and subdirectories of either.
+const worktreePath = (() => {
+  if (!rawWorktreePath) return rawWorktreePath
+  try {
+    const resolved = execSync('git rev-parse --show-toplevel', { cwd: rawWorktreePath, encoding: 'utf-8' }).trim()
+    if (resolved !== rawWorktreePath) {
+      console.log(`[review] resolved worktree path ${rawWorktreePath} -> ${resolved}`)
+    }
+    return resolved
+  } catch (err) {
+    console.error(`[review] failed to resolve git toplevel for ${rawWorktreePath}, falling back to raw path:`, err)
+    return rawWorktreePath
+  }
+})()
 const tmuxTarget = process.argv.find(a => a.startsWith('--tmux='))?.split('=')[1]
 const cmuxSurface = process.argv.find(a => a.startsWith('--surface='))?.split('=')[1]
 

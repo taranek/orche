@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "electron-playwright-mcp": {
+      "command": "npx",
+      "args": [
+        "electron-playwright-mcp",
+        "./packages/review/launch-electron.sh"
+      ]
+    }
+  }
+}
