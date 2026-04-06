@@ -9,7 +9,13 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   plugins: [
-    react(),
+    react({
+      babel: {
+        plugins: [
+          ['babel-plugin-react-compiler', { target: '19' }],
+        ],
+      },
+    }),
     tailwindcss(),
     electron({
       main: {
