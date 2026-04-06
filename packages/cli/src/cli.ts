@@ -87,6 +87,13 @@ async function runReview(worktreePath: string): Promise<void> {
     }
   });
 
+  // Exit the CLI when the review app quits — otherwise the fs watcher
+  // keeps the event loop alive and the user has to ctrl+c.
+  const onReviewExit = (code: number | null): void => {
+    try { watcher.close(); } catch {}
+    process.exit(code ?? 0);
+  };
+
   // Dev mode: launch electron from local monorepo
   const cliDir = path.dirname(new URL(import.meta.url).pathname);
   const localReviewDir = path.resolve(cliDir, "../../review");
@@ -96,18 +103,20 @@ async function runReview(worktreePath: string): Promise<void> {
   if (devReviewPath) {
     const electronBin = path.join(devReviewPath, "node_modules/.bin/electron");
     if (debug) console.error(`[review] launching: ${electronBin} ${[devReviewPath, ...args].join(" ")}`);
-    spawn(electronBin, [devReviewPath, ...args], {
+    const child = spawn(electronBin, [devReviewPath, ...args], {
       stdio: ["ignore", "inherit", "inherit"],
       env: { ...process.env, VITE_DEV_SERVER_URL: undefined },
     });
+    child.on("exit", onReviewExit);
     return;
   }
 
   const binaryPath = await getReviewBinaryPath();
   if (debug) console.error(`[review] launching: ${binaryPath} ${args.join(" ")}`);
-  spawn(binaryPath, args, {
+  const child = spawn(binaryPath, args, {
     stdio: ["ignore", "inherit", "inherit"],
   });
+  child.on("exit", onReviewExit);
 }
 
 function getRepoRoot(cwd: string): string {
