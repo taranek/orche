@@ -6,7 +6,6 @@ import { promisify } from 'node:util'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
-import chokidar, { type FSWatcher } from 'chokidar'
 
 const execAsync = promisify(exec)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -122,56 +121,13 @@ async function getChangedFiles(cwd: string) {
   }
 }
 
-let watcher: FSWatcher | null = null
-let pollInterval: NodeJS.Timeout | null = null
-
-function startWatching() {
-  if (!worktreePath || !win) return
-
-  let firstEmit = true
-  const emitChanges = async () => {
-    try {
-      if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
-      const changes = await getChangedFiles(worktreePath)
-      if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
-      if (firstEmit) {
-        console.log('[review] changed files:', changes.map(c => `${c.status[0]} ${c.path}`))
-        firstEmit = false
-      }
-      win.webContents.send('files:changed', { changes })
-    } catch {
-      // Render frame may be disposed during reload/crash — ignore
-    }
-  }
-
-  watcher = chokidar.watch(worktreePath, {
-    ignored: [/(^|[\/\\])\./, /node_modules/],
-    persistent: true,
-    ignoreInitial: true,
-  })
-  watcher.on('all', emitChanges)
-
-  // Poll every 2s as reliability fallback
-  pollInterval = setInterval(emitChanges, 2000)
-
-  // Emit initial state
-  emitChanges()
-}
-
-function stopWatching() {
-  if (watcher) { watcher.close(); watcher = null }
-  if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
-}
-
 app.on('window-all-closed', () => {
-  stopWatching()
   app.quit()
   win = null
 })
 
 app.whenReady().then(() => {
   createWindow()
-  startWatching()
 })
 
 // --- IPC: pass worktree path to renderer ---

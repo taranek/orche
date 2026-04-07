@@ -80,7 +80,6 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   useEffect(() => {
     window.review.getChanges().then(setChanges)
     window.review.getBranch().then(setBranch)
-    return window.review.onFilesChanged(setChanges)
   }, [])
 
   const activeFile = selectedFile ?? (changes.length > 0

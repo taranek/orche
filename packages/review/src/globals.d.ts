@@ -14,7 +14,6 @@ declare global {
       write: (filePath: string, content: string) => Promise<void>
       getBranch: () => Promise<string | null>
       submit: (markdown: string) => Promise<{ success: boolean; path?: string; error?: string }>
-      onFilesChanged: (callback: (changes: Array<{ path: string; name: string; status: 'modified' | 'added' | 'deleted' }>) => void) => () => void
       quit: () => void
     }
   }

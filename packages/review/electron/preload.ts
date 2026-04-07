@@ -26,12 +26,5 @@ contextBridge.exposeInMainWorld('review', {
   submit: (markdown: string): Promise<{ success: boolean; path?: string; error?: string }> =>
     ipcRenderer.invoke('review:submit', { markdown }),
 
-  onFilesChanged: (callback: (changes: Array<{ path: string; name: string; status: 'modified' | 'added' | 'deleted' }>) => void) => {
-    const handler = (_event: unknown, data: { changes: Array<{ path: string; name: string; status: 'modified' | 'added' | 'deleted' }> }) =>
-      callback(data.changes)
-    ipcRenderer.on('files:changed', handler)
-    return () => { ipcRenderer.off('files:changed', handler) }
-  },
-
   quit: (): void => ipcRenderer.send('review:quit'),
 })
