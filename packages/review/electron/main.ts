@@ -116,6 +116,7 @@ async function getChangedFiles(cwd: string) {
               ? 'added'
               : 'deleted' as const,
       }))
+      .sort((a, b) => a.path.localeCompare(b.path))
   } catch {
     return []
   }

@@ -1,103 +1,159 @@
-import { useState } from 'react'
-import { ChevronRight, Folder, File } from 'lucide-react'
+import { useEffect, useRef, useMemo } from 'react'
+import { useFileTree, FileTree } from '@pierre/trees/react'
+import { preparePresortedFileTreeInput, themeToTreeStyles } from '@pierre/trees'
+import { useTheme } from '@orche/shared'
 import { useFileStore } from '../store/fileStore'
-import type { FileTreeNode } from '../types'
+import type { FileChange } from '../types'
 
-function FileTreeItem({
-  node,
-  depth = 0,
+interface FileTreePanelProps {
+  changes: FileChange[]
+  onFileClick?: (path: string) => void
+  commentCounts?: Record<string, number>
+}
+
+function FileTreeInner({
+  changes,
   onFileClick,
   commentCounts,
 }: {
-  node: FileTreeNode
-  depth?: number
+  changes: FileChange[]
   onFileClick?: (path: string) => void
   commentCounts?: Record<string, number>
 }) {
-  const [isExpanded, setIsExpanded] = useState(true)
   const selectedFile = useFileStore((s) => s.selectedFile)
   const selectFile = useFileStore((s) => s.selectFile)
-  const isSelected = node.path === selectedFile
+  const { palette } = useTheme()
 
-  const statusColor = node.status
-    ? { modified: 'text-status-amber', added: 'text-status-green', deleted: 'text-status-red' }[node.status]
-    : undefined
+  const preparedInput = useMemo(
+    () => preparePresortedFileTreeInput(changes.map(c => c.path)),
+    [changes]
+  )
 
-  if (node.type === 'folder') {
-    return (
-      <div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-[12px] text-fg hover:bg-hover rounded border-none bg-transparent cursor-pointer font-[inherit]"
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        >
-          <ChevronRight
-            size={10}
-            className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-          />
-          <Folder size={14} className="text-fg-secondary/60" />
-          <span className="font-medium">{node.name}</span>
-        </button>
-        {isExpanded && node.children && (
-          <div>
-            {node.children.map((child) => (
-              <FileTreeItem
-                key={child.path}
-                node={child}
-                depth={depth + 1}
-                onFileClick={onFileClick}
-                commentCounts={commentCounts}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
+  const gitStatus = changes.map(c => ({
+    path: c.path,
+    status: c.status === 'added' ? 'added' as const
+      : c.status === 'deleted' ? 'deleted' as const
+      : 'modified' as const,
+  }))
+
+  // Map our palette to tree theme styles
+  const treeStyles = useMemo(() => themeToTreeStyles({
+    type: palette.mode,
+    bg: palette.bg.sidebar,
+    fg: palette.text.primary,
+    colors: {
+      'gitDecoration.addedResourceForeground': palette.status.green,
+      'gitDecoration.modifiedResourceForeground': palette.status.amber,
+      'gitDecoration.deletedResourceForeground': palette.status.red,
+      'gitDecoration.untrackedResourceForeground': palette.status.cyan,
+      'list.activeSelectionBackground': palette.accent.dim,
+      'list.activeSelectionForeground': palette.text.primary,
+      'list.hoverBackground': palette.bg.hover,
+      'list.focusOutline': palette.accent.base,
+      'focusBorder': palette.accent.base,
+    },
+  }), [palette])
+
+  // Comment count decorations
+  const commentCountsRef = useRef(commentCounts)
+  commentCountsRef.current = commentCounts
+
+  const scrollLockUntilRef = useRef(0)
+  const onFileClickRef = useRef(onFileClick)
+  onFileClickRef.current = onFileClick
+  const selectFileRef = useRef(selectFile)
+  selectFileRef.current = selectFile
+
+  const { model } = useFileTree({
+    preparedInput,
+    initialExpansion: 'open',
+    density: 'compact',
+    itemHeight: 24,
+    icons: {
+      set: 'complete',
+      colored: true,
+    },
+    gitStatus,
+    unsafeCSS: `
+      [data-file-tree-virtualized-root] {
+        font-size: 12px;
+        font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+      }
+      [data-file-tree-row] {
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+        border-radius: 5px;
+      }
+      [data-file-tree-row-label] {
+        font-size: 11px;
+        letter-spacing: -0.01em;
+      }
+      [data-file-tree-row-icon] svg {
+        width: 14px;
+        height: 14px;
+      }
+      [data-file-tree-row-decoration] {
+        font-size: 10px;
+        opacity: 0.7;
+      }
+      [data-file-tree-git-status] {
+        font-size: 10px;
+        font-weight: 600;
+      }
+    `,
+    renderRowDecoration: ({ item }) => {
+      const count = commentCountsRef.current?.[item.path]
+      if (count && count > 0) {
+        return { text: String(count), title: `${count} comment${count > 1 ? 's' : ''}` }
+      }
+      return null
+    },
+    onSelectionChange: (selectedPaths) => {
+      const selected = selectedPaths[0]
+      if (selected) {
+        scrollLockUntilRef.current = Date.now() + 1000
+        selectFileRef.current(selected)
+        onFileClickRef.current?.(selected)
+      }
+    },
+  })
+
+  // Update git status when changes update after mount
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    model.setGitStatus(gitStatus)
+  }, [changes])
+
+  // Sync active file from store → tree
+  useEffect(() => {
+    if (Date.now() < scrollLockUntilRef.current) return
+    if (selectedFile) {
+      model.focusPath(selectedFile)
+    }
+  }, [selectedFile, model])
 
   return (
-    <button
-      onClick={() => { selectFile(node.path); onFileClick?.(node.path) }}
-      className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-[12px] font-mono rounded border-none cursor-pointer font-[inherit] transition-colors ${
-        isSelected
-          ? 'bg-accent-dim text-fg'
-          : 'text-fg-secondary hover:text-fg hover:bg-hover'
-      }`}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
-    >
-      {node.status ? (
-        <span className={`${statusColor} text-[10px]`}>
-          {node.status === 'modified' && '~'}
-          {node.status === 'added' && '+'}
-          {node.status === 'deleted' && '-'}
-        </span>
-      ) : (
-        <span className="w-[8px]" />
-      )}
-      <File size={12} className="text-fg-secondary/60 shrink-0" strokeWidth={1.2} />
-      <span className="truncate flex-1">{node.name}</span>
-      {(commentCounts?.[node.path] ?? 0) > 0 && (
-        <span className="shrink-0 min-w-[16px] h-[16px] flex items-center justify-center rounded-full bg-accent/15 text-accent text-[9px] font-semibold">
-          {commentCounts![node.path]}
-        </span>
-      )}
-    </button>
+    <FileTree
+      model={model}
+      style={{ height: '100%', ...treeStyles }}
+    />
   )
 }
 
-export function FileTreePanel({ tree, onFileClick, commentCounts }: { tree: FileTreeNode[]; onFileClick?: (path: string) => void; commentCounts?: Record<string, number> }) {
+export function FileTreePanel({ changes, onFileClick, commentCounts }: FileTreePanelProps) {
+  if (changes.length === 0) return null
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-1 pb-3 pt-1">
-        {tree.map((node) => (
-          <FileTreeItem
-            key={node.path}
-            node={node}
-            onFileClick={onFileClick}
-            commentCounts={commentCounts}
-          />
-        ))}
-      </div>
+    <div className="h-full">
+      <FileTreeInner
+        changes={changes}
+        onFileClick={onFileClick}
+        commentCounts={commentCounts}
+      />
     </div>
   )
 }

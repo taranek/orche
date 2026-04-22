@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef, memo, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useState, useCallback, useRef, memo, forwardRef, useImperativeHandle } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ExistingComment } from '@orche/shared'
 import type { FileChange } from '../types'
@@ -136,15 +136,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
     const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
     const virtuosoRef = useRef<VirtuosoHandle>(null)
 
-    const sortedChanges = useMemo(
-      () => [...changes].sort((a, b) => a.path.localeCompare(b.path)),
-      [changes]
-    )
-
-    const loadedItems = useMemo(
-      () => sortedChanges.filter(c => fileDataMap[c.path]),
-      [sortedChanges, fileDataMap]
-    )
+    const loadedItems = changes.filter(c => fileDataMap[c.path])
 
     useImperativeHandle(ref, () => ({
       scrollToFile: (path: string) => {

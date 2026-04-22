@@ -9,7 +9,7 @@ import {
 
 import { usePersistedTheme } from './hooks/usePersistedTheme'
 import { useFileStore } from './store/fileStore'
-import { buildFileTree } from './utils/buildFileTree'
+// buildFileTree no longer needed — @pierre/trees handles tree construction from flat paths
 import type { FileChange, SidePanel } from './types'
 import { REVIEW_ID } from './types'
 
@@ -67,7 +67,6 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     return grouped
   }, [pendingComments])
 
-  const fileTree = useMemo(() => buildFileTree(changes), [changes])
 
   const commentCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -221,7 +220,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
         <div className="flex-1 min-h-0">
           {sidePanel === 'files' && (
-            <FileTreePanel tree={fileTree} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
+            <FileTreePanel changes={changes} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
           )}
           {sidePanel === 'comments' && (
             <CommentsPanel
