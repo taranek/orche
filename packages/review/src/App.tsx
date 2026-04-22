@@ -20,6 +20,7 @@ import { ThemePanel } from './components/ThemePanel'
 import { PanelHeader } from './components/PanelHeader'
 import { StatusBar } from './components/StatusBar'
 import { EngineToggle } from './components/EngineToggle'
+import { ResizablePanel } from './components/ResizablePanel'
 import { SubmittedScreen } from './components/SubmittedScreen'
 import { PierreDiffView, type PierreDiffViewHandle } from './components/PierreDiffView'
 import { CodeMirrorDiffView, type CodeMirrorDiffViewHandle } from './components/CodeMirrorDiffView'
@@ -212,7 +213,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
       <IconRail active={sidePanel} onChange={setSidePanel} commentCount={pendingComments.length} />
 
       {/* Side panel */}
-      <div className="w-56 shrink-0 border-r border-edge/60 bg-sidebar/50 flex flex-col">
+      <ResizablePanel className="border-r border-edge/60 bg-sidebar/50">
         <PanelHeader title={
           sidePanel === 'files' ? 'Changed Files' :
           sidePanel === 'comments' ? 'Comments' : 'Appearance'
@@ -232,7 +233,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
             <ThemePanel theme={theme} onThemeChange={onThemeChange} />
           )}
         </div>
-      </div>
+      </ResizablePanel>
 
       {/* Main diff area */}
       <div className="flex-1 min-w-0 flex flex-col">
