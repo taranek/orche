@@ -18,9 +18,11 @@ import { FileTreePanel } from './components/FileTreePanel'
 import { CommentsPanel } from './components/CommentsPanel'
 import { ThemePanel } from './components/ThemePanel'
 import { PanelHeader } from './components/PanelHeader'
-import { StatusBar } from './components/StatusBar'
 import { EngineToggle } from './components/EngineToggle'
 import { ResizablePanel } from './components/ResizablePanel'
+import { SubmitReviewButton } from './components/SubmitReviewButton'
+import { GitBranch } from 'lucide-react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { SubmittedScreen } from './components/SubmittedScreen'
 import { PierreDiffView, type PierreDiffViewHandle } from './components/PierreDiffView'
 import { CodeMirrorDiffView, type CodeMirrorDiffViewHandle } from './components/CodeMirrorDiffView'
@@ -81,6 +83,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     window.review.getChanges().then(setChanges)
     window.review.getBranch().then(setBranch)
   }, [])
+
 
   const activeFile = selectedFile ?? (changes.length > 0
     ? changes.reduce((a, b) => a.path.localeCompare(b.path) <= 0 ? a : b).path
@@ -192,6 +195,11 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     setTimeout(() => window.review.quit(), 1000)
   }, [submitReview, clearSubmitted, getUserEditedFiles, clearUserEdits])
 
+  // Cmd/Ctrl+Enter to submit review
+  useHotkeys('mod+enter', () => {
+    if (pendingComments.length > 0) handleSubmit()
+  }, { enableOnFormTags: true }, [handleSubmit, pendingComments.length])
+
   if (submitted) {
     return <SubmittedScreen />
   }
@@ -200,84 +208,92 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     <div className="h-full flex flex-col bg-vibrancy-overlay shadow-[inset_0_0_0_0.5px_var(--app-border)] rounded-[10px] overflow-hidden">
       {/* Top drag bar */}
       <div
-        className="h-6 shrink-0 bg-sidebar/60 border-b border-edge/40 flex items-center justify-end pr-3"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      >
-        <span className="text-[9px] text-fg-tertiary font-mono opacity-40" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {new Date(__BUILD_TIME__).toLocaleTimeString()}
-        </span>
-      </div>
+        className="h-6 shrink-0 bg-sidebar relative z-30"
+        style={{ WebkitAppRegion: 'drag', borderBottom: '1px solid var(--topbar-border)' } as React.CSSProperties}
+      />
 
       <div className="flex-1 flex min-h-0">
-      {/* Icon rail */}
-      <IconRail active={sidePanel} onChange={setSidePanel} commentCount={pendingComments.length} />
+        {/* Icon rail */}
+        <IconRail active={sidePanel} onChange={setSidePanel} commentCount={pendingComments.length} />
 
-      {/* Side panel */}
-      <ResizablePanel className="border-r border-edge/60 bg-sidebar/50">
-        <PanelHeader title={
-          sidePanel === 'files' ? 'Changed Files' :
-          sidePanel === 'comments' ? 'Comments' : 'Appearance'
-        } />
+        {/* Side panel */}
+        <ResizablePanel className="border-r border-edge/60 bg-surface-low">
+          <PanelHeader title={
+            sidePanel === 'files' ? 'Changed Files' :
+            sidePanel === 'comments' ? 'Comments' : 'Appearance'
+          } />
 
-        <div className="flex-1 min-h-0">
-          {sidePanel === 'files' && (
-            <FileTreePanel changes={changes} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
-          )}
-          {sidePanel === 'comments' && (
-            <CommentsPanel
-              comments={pendingComments}
-              onCommentClick={(filePath) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(filePath)}
-            />
-          )}
-          {sidePanel === 'theme' && (
-            <ThemePanel theme={theme} onThemeChange={onThemeChange} />
-          )}
-        </div>
-      </ResizablePanel>
-
-      {/* Main diff area */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        <EngineToggle engine={diffEngine} onEngineChange={setDiffEngine} />
-
-        {/* Diff viewer — virtualized multi-file scroll */}
-        <div className="flex-1 min-h-0 relative bg-base overflow-hidden">
-          <div className="absolute inset-0">
-            {diffEngine === 'pierre' ? (
-              <PierreDiffView
-                ref={diffViewRef}
-                changes={changes}
-                commentsByFile={commentsByFile}
-                onComment={handleComment}
-                onDeleteComment={handleDeleteComment}
-                onChange={handleChange}
-                activeFile={activeFile}
-                onActiveFileChange={selectFile}
-                theme={palette.mode}
-              />
-            ) : (
-              <CodeMirrorDiffView
-                ref={cmDiffViewRef}
-                changes={changes}
-                commentsByFile={commentsByFile}
-                onComment={handleComment}
-                onDeleteComment={handleDeleteComment}
-                onRelocateComments={handleRelocateComments}
-                onChange={handleChange}
-                activeFile={activeFile}
-                onActiveFileChange={selectFile}
-                theme={palette.mode}
+          <div className="flex-1 min-h-0">
+            {sidePanel === 'files' && (
+              <FileTreePanel changes={changes} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
+            )}
+            {sidePanel === 'comments' && (
+              <CommentsPanel
+                comments={pendingComments}
+                onCommentClick={(filePath) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(filePath)}
               />
             )}
+            {sidePanel === 'theme' && (
+              <ThemePanel theme={theme} onThemeChange={onThemeChange} />
+            )}
+          </div>
+        </ResizablePanel>
+
+        {/* Main diff area */}
+        <div className="flex-1 min-w-0 flex flex-col bg-base">
+          <EngineToggle engine={diffEngine} onEngineChange={setDiffEngine} />
+
+          {/* Diff viewer — virtualized multi-file scroll */}
+          <div className="flex-1 min-h-0 relative overflow-hidden">
+            <div className="absolute inset-0">
+              {diffEngine === 'pierre' ? (
+                <PierreDiffView
+                  ref={diffViewRef}
+                  changes={changes}
+                  commentsByFile={commentsByFile}
+                  onComment={handleComment}
+                  onDeleteComment={handleDeleteComment}
+                  onChange={handleChange}
+                  activeFile={activeFile}
+                  onActiveFileChange={selectFile}
+                  theme={palette.mode}
+                />
+              ) : (
+                <CodeMirrorDiffView
+                  ref={cmDiffViewRef}
+                  changes={changes}
+                  commentsByFile={commentsByFile}
+                  onComment={handleComment}
+                  onDeleteComment={handleDeleteComment}
+                  onRelocateComments={handleRelocateComments}
+                  onChange={handleChange}
+                  activeFile={activeFile}
+                  onActiveFileChange={selectFile}
+                  theme={palette.mode}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Bottom status bar */}
+          <div className="h-10 shrink-0 flex items-center justify-between px-3 border-t border-edge/60 bg-surface-low">
+            <div className="flex items-center gap-3 text-[11px] text-fg tabular-nums">
+              {branch && (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <GitBranch size={11} className="opacity-60" />
+                    <span className="opacity-80 font-mono">{branch}</span>
+                  </div>
+                  <span className="opacity-25">·</span>
+                </>
+              )}
+              <span>{changes.length} file{changes.length !== 1 ? 's' : ''}</span>
+              <span className="opacity-25">·</span>
+              <span>{pendingComments.length} comment{pendingComments.length !== 1 ? 's' : ''}</span>
+            </div>
+            {pendingComments.length > 0 ? <SubmitReviewButton onClick={handleSubmit} /> : null}
           </div>
         </div>
-
-        <StatusBar
-          branch={branch}
-          fileCount={changes.length}
-          commentCount={pendingComments.length}
-          onSubmit={handleSubmit}
-        />
-      </div>
       </div>
     </div>
   )

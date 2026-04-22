@@ -58,10 +58,11 @@ function applyPalette(p: Palette) {
   s.setProperty('--diff-deleted-border', p.diff.deletedBorder);
   s.setProperty('--diff-deleted-text', p.diff.deletedText);
 
-  // Scrollbar tokens (light/dark aware)
+  // Mode-aware tokens
   const isLight = p.mode === 'light';
   s.setProperty('--scrollbar-thumb', isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.08)');
   s.setProperty('--scrollbar-thumb-hover', isLight ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.14)');
+  s.setProperty('--topbar-border', isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.08)');
 
   // Vibrancy tokens — per-theme tint and text color over native vibrancy
   s.setProperty('--vibrancy-overlay', p.vibrancy.overlay);

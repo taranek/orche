@@ -15,7 +15,7 @@ function createResizingWidget(view: EditorView, cssText: string): HTMLDivElement
 }
 
 // Shared card class for comment panels
-const cardClass = 'bg-surface-low border-[0.5px] border-edge-active rounded-[6px] shadow-[0_2px_8px_rgba(0,0,0,0.15),0_1px_2px_rgba(0,0,0,0.1)] font-sans';
+const cardClass = 'bg-surface-low border-[0.5px] border-edge-active rounded-[10px] shadow-[0_2px_8px_rgba(0,0,0,0.15),0_1px_2px_rgba(0,0,0,0.1)] font-sans';
 
 // Kbd badge class matching the app's keyboard shortcut style
 const kbdClass = 'px-1.5 py-[5px] rounded-[4px] text-[10px] font-medium font-[inherit] bg-elevated border border-edge-active text-fg-secondary shadow-[0_1px_0_var(--border)] leading-none';
@@ -32,7 +32,7 @@ export function InlineComment({ comment, onDelete }: { comment: ExistingComment;
           <span className="text-[10px] text-fg-tertiary">on line {comment.lineNumber}</span>
         </div>
         <button
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-fg-tertiary transition-all duration-150 hover:text-status-red"
+          className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-fg-tertiary transition-[opacity,color] duration-150 hover:text-status-red hover:bg-status-red/10 active:scale-[0.96]"
           onClick={() => onDelete(comment.id)}
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -85,7 +85,7 @@ export function CommentInput({
         }}
         className="w-full min-h-14 max-h-[200px] px-3 py-2.5 bg-transparent text-fg text-xs leading-relaxed border-none outline-none! resize-none font-[inherit] field-sizing-content focus:outline-none! focus:ring-0 focus:border-none"
       />
-      <div className="flex items-center justify-between px-2 py-1.5 border-t-[0.5px] border-edge rounded-b-[6px] bg-surface gap-3">
+      <div className="flex items-center justify-between px-2 py-1.5 border-t-[0.5px] border-edge rounded-b-[8px] bg-surface gap-3">
         <span className="text-[11px] text-fg-secondary flex items-center gap-1.5">
           <kbd className={kbdClass}>↵</kbd>
           <span>submit</span>
@@ -96,13 +96,13 @@ export function CommentInput({
         <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="px-2.5 py-1 text-[11px] font-medium text-fg-tertiary rounded-[5px] cursor-pointer border-none bg-transparent font-[inherit] transition-colors hover:text-fg hover:bg-hover"
+            className="px-2.5 py-1 text-[11px] font-medium text-fg-tertiary rounded-[5px] cursor-pointer border-none bg-transparent font-[inherit] transition-[color,background-color] hover:text-fg hover:bg-hover active:scale-[0.96]"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            className="px-3 py-1 text-[11px] font-semibold text-base bg-accent rounded-[5px] cursor-pointer border-none font-[inherit] transition-colors hover:brightness-110"
+            className="px-3 py-1 text-[11px] font-semibold text-base bg-accent rounded-[5px] cursor-pointer border-none font-[inherit] transition-[transform,filter] hover:brightness-110 active:scale-[0.96]"
           >
             {isUpdate ? 'Update' : 'Comment'}
           </button>

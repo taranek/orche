@@ -14,12 +14,12 @@ export function IconRail({ active, onChange, commentCount }: {
   const bottomItem = { id: 'theme' as SidePanel, icon: <Palette size={20} strokeWidth={1.4} />, label: 'Theme' }
 
   return (
-    <div className="w-12 shrink-0 flex flex-col items-center pt-2 pb-3 gap-2 bg-sidebar/60 border-r border-edge/50">
+    <div className="w-12 shrink-0 flex flex-col items-center pt-2 pb-3 gap-2 bg-surface-low border-r border-edge/50">
       {topItems.map(({ id, icon, label, badge }) => (
         <button
           key={id}
           onClick={() => onChange(id)}
-          className={`relative w-10 h-10 flex items-center justify-center rounded-xl cursor-pointer border-none transition-all duration-200 ${
+          className={`relative w-10 h-10 flex items-center justify-center rounded-xl cursor-pointer border-none transition-[background-color,color] duration-200 ${
             active === id
               ? 'bg-hover text-fg'
               : 'bg-transparent text-fg-secondary hover:text-fg hover:bg-hover/40'
@@ -28,7 +28,7 @@ export function IconRail({ active, onChange, commentCount }: {
         >
           {icon}
           {badge != null && badge > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold bg-accent text-base rounded-full px-1 leading-none shadow-sm">
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold bg-accent text-base rounded-full px-1 leading-none shadow-sm tabular-nums">
               {badge}
             </span>
           )}
@@ -40,7 +40,7 @@ export function IconRail({ active, onChange, commentCount }: {
       <div className="flex-1" />
       <button
         onClick={() => onChange(bottomItem.id)}
-        className={`relative w-10 h-10 flex items-center justify-center rounded-xl cursor-pointer border-none transition-all duration-200 ${
+        className={`relative w-10 h-10 flex items-center justify-center rounded-xl cursor-pointer border-none transition-[background-color,color] duration-200 ${
           active === bottomItem.id
             ? 'bg-hover text-fg'
             : 'bg-transparent text-fg-secondary hover:text-fg hover:bg-hover/40'
