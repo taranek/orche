@@ -205,42 +205,47 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   }
 
   return (
-    <div className="h-full flex flex-col bg-vibrancy-overlay shadow-[inset_0_0_0_0.5px_var(--app-border)] rounded-[10px] overflow-hidden">
-      {/* Top drag bar */}
+    <div className="h-full flex flex-col bg-base rounded-[10px] overflow-hidden">
+      {/* Top bar — macOS-style drag region with centered title */}
       <div
-        className="h-6 shrink-0 bg-sidebar relative z-30"
-        style={{ WebkitAppRegion: 'drag', borderBottom: '1px solid var(--topbar-border)' } as React.CSSProperties}
-      />
+        className="h-9 shrink-0 relative z-30 flex items-center justify-center"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        <span className="text-[11px] font-medium text-fg-tertiary tracking-wide" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {branch ? `${branch}` : 'orche review'}
+        </span>
+      </div>
 
-      <div className="flex-1 flex min-h-0">
-        {/* Icon rail */}
-        <IconRail active={sidePanel} onChange={setSidePanel} commentCount={pendingComments.length} />
-
-        {/* Side panel */}
-        <ResizablePanel className="border-r border-edge/60 bg-surface-low">
-          <PanelHeader title={
-            sidePanel === 'files' ? 'Changed Files' :
-            sidePanel === 'comments' ? 'Comments' : 'Appearance'
-          } />
-
-          <div className="flex-1 min-h-0">
-            {sidePanel === 'files' && (
-              <FileTreePanel changes={changes} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
-            )}
-            {sidePanel === 'comments' && (
-              <CommentsPanel
-                comments={pendingComments}
-                onCommentClick={(filePath) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(filePath)}
-              />
-            )}
-            {sidePanel === 'theme' && (
-              <ThemePanel theme={theme} onThemeChange={onThemeChange} />
-            )}
+      <div className="flex-1 flex min-h-0 p-2 gap-1.5">
+        {/* Sidebar card — icon rail + panel */}
+        <ResizablePanel className="bg-surface rounded-lg overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_1px_2px_-1px_rgba(0,0,0,0.3),0_2px_6px_rgba(0,0,0,0.2),0_8px_24px_rgba(0,0,0,0.15)]">
+          <div className="flex h-full">
+            <IconRail active={sidePanel} onChange={setSidePanel} commentCount={pendingComments.length} />
+            <div className="flex-1 flex flex-col min-w-0">
+              <PanelHeader title={
+                sidePanel === 'files' ? 'Changed Files' :
+                sidePanel === 'comments' ? 'Comments' : 'Appearance'
+              } />
+              <div className="flex-1 min-h-0">
+                {sidePanel === 'files' && (
+                  <FileTreePanel changes={changes} onFileClick={(path) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(path)} commentCounts={commentCounts} />
+                )}
+                {sidePanel === 'comments' && (
+                  <CommentsPanel
+                    comments={pendingComments}
+                    onCommentClick={(filePath) => (diffEngine === 'pierre' ? diffViewRef : cmDiffViewRef).current?.scrollToFile(filePath)}
+                  />
+                )}
+                {sidePanel === 'theme' && (
+                  <ThemePanel theme={theme} onThemeChange={onThemeChange} />
+                )}
+              </div>
+            </div>
           </div>
         </ResizablePanel>
 
-        {/* Main diff area */}
-        <div className="flex-1 min-w-0 flex flex-col bg-base">
+        {/* Main diff area — rounded card */}
+        <div className="flex-1 min-w-0 flex flex-col bg-surface-low rounded-lg overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_1px_2px_-1px_rgba(0,0,0,0.2),0_2px_4px_rgba(0,0,0,0.12)]">
           <EngineToggle engine={diffEngine} onEngineChange={setDiffEngine} />
 
           {/* Diff viewer — virtualized multi-file scroll */}
@@ -276,7 +281,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
           </div>
 
           {/* Bottom status bar */}
-          <div className="h-10 shrink-0 flex items-center justify-between px-3 border-t border-edge/60 bg-surface-low">
+          <div className="h-12 shrink-0 flex items-center justify-between px-4 bg-base shadow-[0_-1px_0_var(--border)]">
             <div className="flex items-center gap-3 text-[11px] text-fg tabular-nums">
               {branch && (
                 <>

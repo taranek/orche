@@ -14,7 +14,7 @@ export function IconRail({ active, onChange, commentCount }: {
   const bottomItem = { id: 'theme' as SidePanel, icon: <Palette size={20} strokeWidth={1.4} />, label: 'Theme' }
 
   return (
-    <div className="w-12 shrink-0 flex flex-col items-center pt-2 pb-3 gap-2 bg-surface-low border-r border-edge/50">
+    <div className="w-12 shrink-0 flex flex-col items-center pt-2 pb-3 gap-2">
       {topItems.map(({ id, icon, label, badge }) => (
         <button
           key={id}
@@ -32,9 +32,6 @@ export function IconRail({ active, onChange, commentCount }: {
               {badge}
             </span>
           )}
-          {active === id && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-5 bg-accent rounded-r-full" />
-          )}
         </button>
       ))}
       <div className="flex-1" />
@@ -48,9 +45,6 @@ export function IconRail({ active, onChange, commentCount }: {
         title={bottomItem.label}
       >
         {bottomItem.icon}
-        {active === bottomItem.id && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-5 bg-accent rounded-r-full" />
-        )}
       </button>
     </div>
   )

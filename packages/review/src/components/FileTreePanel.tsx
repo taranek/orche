@@ -39,7 +39,7 @@ function FileTreeInner({
   // Map our palette to tree theme styles
   const treeStyles = useMemo(() => themeToTreeStyles({
     type: palette.mode,
-    bg: palette.bg.sidebar,
+    bg: palette.bg.surface,
     fg: palette.text.primary,
     colors: {
       'gitDecoration.addedResourceForeground': palette.status.green,

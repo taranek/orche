@@ -30,7 +30,7 @@ export const DiffFileHeader = memo(function DiffFileHeader({
   return (
     <div
       onClick={onClick}
-      className="sticky top-0 z-20 flex items-center gap-2 h-[38px] px-3 bg-surface-low cursor-pointer select-none shadow-[0_1px_0_var(--border)] hover:bg-hover transition-[background-color] active:scale-[0.996]"
+      className="sticky top-0 z-20 flex items-center gap-2 h-[38px] px-3 bg-surface cursor-pointer select-none shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_1px_2px_-1px_rgba(0,0,0,0.3),0_2px_4px_rgba(0,0,0,0.12)] hover:bg-elevated transition-[background-color] active:scale-[0.996]"
     >
       {isCollapsed
         ? <ChevronRight size={13} className="text-fg-tertiary" />
