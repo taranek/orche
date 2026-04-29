@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, readdirSync, existsSync, watch, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, watch, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
@@ -8,53 +8,14 @@ import { pruneCommand } from "./prune.js";
 import { getMultiplexer } from "./multiplexer.js";
 import { buildLayout } from "./layout.js";
 import { getReviewBinaryPath } from "./review-manager.js";
-import type { AgentsConfig, MultiplexerType } from "./types.js";
+import { loadConfig, parsePresetFlag } from "./config.js";
+import type { MultiplexerType } from "./types.js";
 
 const CONFIG_NAME = ".orche.json";
-const CONFIG_LOCAL_NAME = ".orche.local.json";
-const CONFIG_PRESET_PREFIX = ".orche.";
-const CONFIG_PRESET_SUFFIX = ".json";
 
 function die(msg: string): never {
   console.error(`error: ${msg}`);
   process.exit(1);
-}
-
-
-function listPresets(cwd: string): string[] {
-  const files = readdirSync(cwd);
-  return files
-    .filter(f => f.startsWith(CONFIG_PRESET_PREFIX) && f.endsWith(CONFIG_PRESET_SUFFIX) && f !== CONFIG_NAME && f !== CONFIG_LOCAL_NAME)
-    .map(f => f.slice(CONFIG_PRESET_PREFIX.length, -CONFIG_PRESET_SUFFIX.length));
-}
-
-function loadConfig(cwd: string, preset?: string): AgentsConfig {
-  if (preset) {
-    const presetPath = path.join(cwd, `${CONFIG_PRESET_PREFIX}${preset}${CONFIG_PRESET_SUFFIX}`);
-    if (!existsSync(presetPath)) {
-      const available = listPresets(cwd);
-      const list = available.length > 0
-        ? `\navailable presets: ${available.join(", ")}`
-        : "\nno preset files found in current directory";
-      die(`preset "${preset}" not found (looked for ${CONFIG_PRESET_PREFIX}${preset}${CONFIG_PRESET_SUFFIX})${list}`);
-    }
-    const raw = readFileSync(presetPath, "utf-8");
-    return JSON.parse(raw) as AgentsConfig;
-  }
-
-  const localPath = path.join(cwd, CONFIG_LOCAL_NAME);
-  const configPath = path.join(cwd, CONFIG_NAME);
-
-  if (existsSync(localPath)) {
-    const raw = readFileSync(localPath, "utf-8");
-    return JSON.parse(raw) as AgentsConfig;
-  }
-
-  if (!existsSync(configPath)) {
-    die(`no ${CONFIG_NAME} found in ${cwd}`);
-  }
-  const raw = readFileSync(configPath, "utf-8");
-  return JSON.parse(raw) as AgentsConfig;
 }
 
 function deliverReview(pendingPath: string): void {
@@ -161,14 +122,6 @@ function getRepoRoot(cwd: string): string {
   return cwd;
 }
 
-function parsePresetFlag(args: string[]): string | undefined {
-  const idx = args.indexOf("-p");
-  if (idx !== -1 && idx + 1 < args.length) return args[idx + 1];
-  const long = args.find(a => a.startsWith("--preset="));
-  if (long) return long.split("=")[1];
-  return undefined;
-}
-
 function startSession(): void {
   const cwd = getRepoRoot(process.cwd());
   const repoName = path.basename(cwd);
@@ -226,7 +179,7 @@ Examples:
   orche prune --force               Allow removing worktrees with uncommitted changes
 
 Requires a ${CONFIG_NAME} file in the current directory.
-Use ${CONFIG_LOCAL_NAME} for local overrides (not committed).
+Use .orche.local.json for local overrides (not committed).
 Use .orche.<preset>.json for named presets (e.g. .orche.mobile.json).
 See .orche.example.json for the config format.
 `);
