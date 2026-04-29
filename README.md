@@ -66,20 +66,22 @@ Opens the desktop review app for the current worktree.
 ## Usage
 
 ```
-orche start <task>         Start a new session for <task>
-orche review [path]        Open the review UI for a worktree
-orche prune [--all] [-f]   Remove orche worktrees (interactive multiselect)
+orche start <task> [-p <preset>]   Start a new session for <task>
+orche review [path]                Open the review UI for a worktree
+orche prune [--all] [-f]           Remove orche worktrees (interactive multiselect)
 ```
 
 ### Examples
 
 ```bash
-orche start fix-auth       # Create worktree + session for "fix-auth"
-orche review               # Review changes in current directory
-orche review ./worktree    # Review changes in a specific worktree
-orche prune                # Pick worktrees to remove
-orche prune --all          # Remove every orche worktree
-orche prune --force        # Remove worktrees even if they have uncommitted changes
+orche start fix-auth               # Create worktree + session for "fix-auth"
+orche start fix-auth -p mobile     # Use .orche.mobile.json preset
+orche start fix-auth --preset=debug  # Use .orche.debug.json preset
+orche review                       # Review changes in current directory
+orche review ./worktree            # Review changes in a specific worktree
+orche prune                        # Pick worktrees to remove
+orche prune --all                  # Remove every orche worktree
+orche prune --force                # Remove worktrees even if they have uncommitted changes
 ```
 
 ### Pruning worktrees
@@ -148,6 +150,17 @@ Supported values: `"tmux"` (default) or `"cmux"`.
 ### `.orche.local.json`
 
 Same format as `.orche.json`. If present, it takes priority over `.orche.json`. This file is gitignored by default, so you can use it for personal overrides without affecting the team config.
+
+### Presets
+
+Create named preset files like `.orche.mobile.json`, `.orche.debug.json`, etc. Use them with the `-p` flag:
+
+```bash
+orche start fix-auth -p mobile    # loads .orche.mobile.json
+orche start fix-auth -p debug     # loads .orche.debug.json
+```
+
+When a preset is specified, it takes priority over both `.orche.json` and `.orche.local.json`. If the preset file doesn't exist, orche will list all available presets in the current directory.
 
 ## Review app
 
