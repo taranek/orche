@@ -2,6 +2,8 @@
 
 Orchestrate coding agents across isolated git worktrees with a built-in code review UI.
 
+https://github.com/user-attachments/assets/35150d31-84ce-4f1d-8df9-4aef179dc532
+
 orche is two things:
 
 - **`orche start <task>`** — spins up a tmux/cmux session with your agent, dev server, and any other tools you need, each running in an isolated git worktree so agents never step on each other.
