@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, watch, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, watch, unlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
@@ -12,6 +12,8 @@ import type { AgentsConfig, MultiplexerType } from "./types.js";
 
 const CONFIG_NAME = ".orche.json";
 const CONFIG_LOCAL_NAME = ".orche.local.json";
+const CONFIG_PRESET_PREFIX = ".orche.";
+const CONFIG_PRESET_SUFFIX = ".json";
 
 function die(msg: string): never {
   console.error(`error: ${msg}`);
@@ -19,7 +21,27 @@ function die(msg: string): never {
 }
 
 
-function loadConfig(cwd: string): AgentsConfig {
+function listPresets(cwd: string): string[] {
+  const files = readdirSync(cwd);
+  return files
+    .filter(f => f.startsWith(CONFIG_PRESET_PREFIX) && f.endsWith(CONFIG_PRESET_SUFFIX) && f !== CONFIG_NAME && f !== CONFIG_LOCAL_NAME)
+    .map(f => f.slice(CONFIG_PRESET_PREFIX.length, -CONFIG_PRESET_SUFFIX.length));
+}
+
+function loadConfig(cwd: string, preset?: string): AgentsConfig {
+  if (preset) {
+    const presetPath = path.join(cwd, `${CONFIG_PRESET_PREFIX}${preset}${CONFIG_PRESET_SUFFIX}`);
+    if (!existsSync(presetPath)) {
+      const available = listPresets(cwd);
+      const list = available.length > 0
+        ? `\navailable presets: ${available.join(", ")}`
+        : "\nno preset files found in current directory";
+      die(`preset "${preset}" not found (looked for ${CONFIG_PRESET_PREFIX}${preset}${CONFIG_PRESET_SUFFIX})${list}`);
+    }
+    const raw = readFileSync(presetPath, "utf-8");
+    return JSON.parse(raw) as AgentsConfig;
+  }
+
   const localPath = path.join(cwd, CONFIG_LOCAL_NAME);
   const configPath = path.join(cwd, CONFIG_NAME);
 
@@ -139,12 +161,22 @@ function getRepoRoot(cwd: string): string {
   return cwd;
 }
 
+function parsePresetFlag(args: string[]): string | undefined {
+  const idx = args.indexOf("-p");
+  if (idx !== -1 && idx + 1 < args.length) return args[idx + 1];
+  const long = args.find(a => a.startsWith("--preset="));
+  if (long) return long.split("=")[1];
+  return undefined;
+}
+
 function startSession(): void {
   const cwd = getRepoRoot(process.cwd());
   const repoName = path.basename(cwd);
-  const taskName = process.argv.slice(3).find((a) => !a.startsWith("--")) || "session";
+  const args = process.argv.slice(3);
+  const preset = parsePresetFlag(args);
+  const taskName = args.find((a) => !a.startsWith("-") && a !== preset) || "session";
 
-  const config = loadConfig(cwd);
+  const config = loadConfig(cwd, preset);
   const muxFlag: MultiplexerType | undefined =
     process.argv.includes("--tmux") ? "tmux" :
     process.argv.includes("--cmux") ? "cmux" :
@@ -176,20 +208,26 @@ function printUsage(): void {
 orche — orchestrate agents across git worktrees
 
 Usage:
-  orche start <task>         Start a new session for <task>
-  orche review [path]        Open the review UI for a worktree
-  orche prune [--all] [-f]   Remove orche worktrees (interactive multiselect)
+  orche start <task> [-p <preset>]   Start a new session for <task>
+  orche review [path]                Open the review UI for a worktree
+  orche prune [--all] [-f]           Remove orche worktrees (interactive multiselect)
+
+Options:
+  -p, --preset=<name>    Load .orche.<name>.json instead of .orche.json
 
 Examples:
-  orche start fix-auth       Create worktree + session for "fix-auth"
-  orche review               Review changes in current directory
-  orche review ./worktree    Review changes in a specific worktree
-  orche prune                Pick worktrees to remove
-  orche prune --all          Remove all orche worktrees
-  orche prune --force        Allow removing worktrees with uncommitted changes
+  orche start fix-auth              Create worktree + session for "fix-auth"
+  orche start fix-auth -p mobile    Use .orche.mobile.json preset
+  orche start fix-auth -p debug     Use .orche.debug.json preset
+  orche review                      Review changes in current directory
+  orche review ./worktree           Review changes in a specific worktree
+  orche prune                       Pick worktrees to remove
+  orche prune --all                 Remove all orche worktrees
+  orche prune --force               Allow removing worktrees with uncommitted changes
 
 Requires a ${CONFIG_NAME} file in the current directory.
 Use ${CONFIG_LOCAL_NAME} for local overrides (not committed).
+Use .orche.<preset>.json for named presets (e.g. .orche.mobile.json).
 See .orche.example.json for the config format.
 `);
 }
