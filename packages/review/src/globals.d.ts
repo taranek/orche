@@ -11,6 +11,8 @@ declare global {
       >
       readOriginal: (filePath: string) => Promise<string | null>
       read: (filePath: string) => Promise<string>
+      readBase64: (filePath: string) => Promise<string | null>
+      readOriginalBase64: (filePath: string) => Promise<string | null>
       write: (filePath: string, content: string) => Promise<void>
       getBranch: () => Promise<string | null>
       submit: (markdown: string) => Promise<{ success: boolean; path?: string; error?: string }>

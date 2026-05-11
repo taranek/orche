@@ -180,6 +180,31 @@ ipcMain.handle('files:read', async (_event, { filePath }) => {
   }
 })
 
+ipcMain.handle('files:readBase64', async (_event, { filePath }) => {
+  if (!worktreePath) return null
+  const fullPath = path.join(worktreePath, filePath)
+  try {
+    const buf = await readFile(fullPath)
+    return buf.toString('base64')
+  } catch {
+    return null
+  }
+})
+
+ipcMain.handle('files:readOriginalBase64', async (_event, { filePath }) => {
+  if (!worktreePath) return null
+  try {
+    const { stdout } = await execAsync(`git show HEAD:"${filePath}"`, {
+      cwd: worktreePath,
+      maxBuffer: 10 * 1024 * 1024,
+      encoding: 'buffer',
+    })
+    return (stdout as unknown as Buffer).toString('base64')
+  } catch {
+    return null
+  }
+})
+
 ipcMain.handle('files:write', async (_event, { filePath, content }: { filePath: string; content: string }) => {
   if (!worktreePath) return
   const fullPath = path.join(worktreePath, filePath)

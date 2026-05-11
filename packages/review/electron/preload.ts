@@ -17,6 +17,12 @@ contextBridge.exposeInMainWorld('review', {
   read: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('files:read', { filePath }),
 
+  readBase64: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('files:readBase64', { filePath }),
+
+  readOriginalBase64: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('files:readOriginalBase64', { filePath }),
+
   write: (filePath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('files:write', { filePath, content }),
 

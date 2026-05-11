@@ -4,6 +4,7 @@ import type { ExistingComment } from '@orche/shared'
 import type { FileChange } from '../types'
 import { DiffFileHeader } from './DiffFileHeader'
 import { MergeViewEditor } from './MergeViewEditor'
+import { ImageDiff, isImageFile } from './ImageDiff'
 import './merge-view-styles.css'
 
 interface FileData {
@@ -104,16 +105,20 @@ const FileDiffItem = memo(function FileDiffItem({
       </div>
 
       {!isCollapsed ? (
-        <MergeViewEditor
-          original={fileData.original}
-          modified={fileData.modified}
-          filePath={change.path}
-          onChange={onChange}
-          onComment={onComment}
-          onDeleteComment={onDeleteComment}
-          onRelocateComments={onRelocateComments}
-          existingComments={existingComments}
-        />
+        isImageFile(change.path) ? (
+          <ImageDiff filePath={change.path} status={change.status} />
+        ) : (
+          <MergeViewEditor
+            original={fileData.original}
+            modified={fileData.modified}
+            filePath={change.path}
+            onChange={onChange}
+            onComment={onComment}
+            onDeleteComment={onDeleteComment}
+            onRelocateComments={onRelocateComments}
+            existingComments={existingComments}
+          />
+        )
       ) : null}
     </div>
   )
@@ -154,6 +159,10 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
       async function loadAll() {
         const entries = await Promise.all(
           changes.map(async (change) => {
+            // Image files don't need text content — just mark them as loaded
+            if (isImageFile(change.path)) {
+              return [change.path, { original: '', modified: '' }] as const
+            }
             try {
               const [orig, mod] = await Promise.all([
                 window.review.readOriginal(change.path),
