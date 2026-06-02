@@ -4,6 +4,7 @@ dist-electron
 *.tgz
 .DS_Store
 .orche/
+.orche.json
 .orche.local.json
 release
 .idea/
