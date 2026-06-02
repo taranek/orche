@@ -6,3 +6,4 @@ dist-electron
 .orche/
 .orche.local.json
 release
+.idea/
