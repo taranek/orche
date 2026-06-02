@@ -22,6 +22,7 @@ import { EngineToggle } from './components/EngineToggle'
 import { ResizablePanel } from './components/ResizablePanel'
 import { SubmitReviewButton } from './components/SubmitReviewButton'
 import { CommitSelector } from './components/CommitSelector'
+import { SplashScreen } from './components/SplashScreen'
 import { GitBranch } from 'lucide-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { SubmittedScreen } from './components/SubmittedScreen'
@@ -35,6 +36,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const selectedFile = useFileStore((s) => s.selectedFile)
   const selectFile = useFileStore((s) => s.selectFile)
   const [submitted, setSubmitted] = useState(false)
+  const [splashDismissed, setSplashDismissed] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
   const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('codemirror')
@@ -213,6 +215,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
   return (
     <div className="h-full flex flex-col bg-base rounded-[10px] overflow-hidden">
+      {!splashDismissed && <SplashScreen onDismiss={() => setSplashDismissed(true)} />}
       {/* Top bar — macOS-style drag region with centered title */}
       <div
         className="h-9 shrink-0 relative z-30 flex items-center justify-center"
