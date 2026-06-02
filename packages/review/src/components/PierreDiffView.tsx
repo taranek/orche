@@ -7,7 +7,7 @@ import type {
 import type { SelectedLineRange, OnDiffLineClickProps, AnnotationSide } from '@pierre/diffs'
 import { InlineComment, CommentInput, type ExistingComment } from '@orche/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { FileChange } from '../types'
+import type { FileChange, ReviewRange } from '../types'
 
 interface CommentAnnotation {
   comment?: ExistingComment
@@ -32,6 +32,7 @@ interface PierreDiffViewProps {
   activeFile: string | null
   onActiveFileChange: (path: string) => void
   theme: 'dark' | 'light'
+  range: ReviewRange
 }
 
 export const PierreDiffView = forwardRef<PierreDiffViewHandle, PierreDiffViewProps>(
@@ -44,6 +45,7 @@ function PierreDiffView({
   activeFile: _activeFile,
   onActiveFileChange,
   theme,
+  range,
 }, ref) {
   const [fileDataMap, setFileDataMap] = useState<Record<string, FileData>>({})
   const [collapsedFiles, setCollapsedFiles] = useState<Record<string, boolean>>({})
@@ -66,14 +68,15 @@ function PierreDiffView({
         changes.map(async (change) => {
           try {
             const [orig, mod] = await Promise.all([
-              window.review.readOriginal(change.path),
-              window.review.read(change.path),
+              window.review.readOriginal(change.path, range),
+              window.review.read(change.path, range),
             ])
             return [change.path, {
               oldFile: { name: change.path, contents: orig ?? '' },
               newFile: { name: change.path, contents: mod },
             } satisfies FileData] as const
-          } catch {
+          } catch (err) {
+            console.error(`[review] failed to load ${change.path}:`, err)
             return [change.path, null] as const
           }
         })
@@ -100,7 +103,7 @@ function PierreDiffView({
 
     loadAll()
     return () => { cancelled = true }
-  }, [changes])
+  }, [changes, range])
 
   // Sort changes to match the sidebar tree order (alphabetical by path segments)
   const sortedChanges = useMemo(

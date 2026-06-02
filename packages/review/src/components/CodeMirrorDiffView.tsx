@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo, forwardRef, useImperativeHandle } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ExistingComment } from '@orche/shared'
-import type { FileChange } from '../types'
+import type { FileChange, ReviewRange } from '../types'
 import { DiffFileHeader } from './DiffFileHeader'
 import { MergeViewEditor } from './MergeViewEditor'
 import { ImageDiff, isImageFile } from './ImageDiff'
@@ -31,6 +31,7 @@ interface CodeMirrorDiffViewProps {
   activeFile: string | null
   onActiveFileChange: (path: string) => void
   theme: 'dark' | 'light'
+  range: ReviewRange
 }
 
 function computeStats(original: string, modified: string) {
@@ -56,7 +57,7 @@ const EMPTY_STATE = (
 const FileDiffItem = memo(function FileDiffItem({
   change, fileData, isCollapsed, onToggleCollapse,
   onChange, onComment, onDeleteComment, onRelocateComments, existingComments,
-  onInView,
+  onInView, range,
 }: {
   change: FileChange
   fileData: FileData
@@ -68,6 +69,7 @@ const FileDiffItem = memo(function FileDiffItem({
   onRelocateComments: (moves: Array<{ id: string; lineNumber: number }>) => void
   existingComments: ExistingComment[]
   onInView: (path: string) => void
+  range: ReviewRange
 }) {
   const stats = computeStats(fileData.original, fileData.modified)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -106,7 +108,7 @@ const FileDiffItem = memo(function FileDiffItem({
 
       {!isCollapsed ? (
         isImageFile(change.path) ? (
-          <ImageDiff filePath={change.path} status={change.status} />
+          <ImageDiff filePath={change.path} status={change.status} range={range} />
         ) : (
           <MergeViewEditor
             original={fileData.original}
@@ -135,6 +137,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
     activeFile: _activeFile,
     onActiveFileChange,
     theme: _theme,
+    range,
   }, ref) {
     const [fileDataMap, setFileDataMap] = useState<Record<string, FileData>>({})
     const [collapsedFiles, setCollapsedFiles] = useState<Record<string, boolean>>({})
@@ -165,11 +168,12 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
             }
             try {
               const [orig, mod] = await Promise.all([
-                window.review.readOriginal(change.path),
-                window.review.read(change.path),
+                window.review.readOriginal(change.path, range),
+                window.review.read(change.path, range),
               ])
               return [change.path, { original: orig ?? '', modified: mod }] as const
-            } catch {
+            } catch (err) {
+              console.error(`[review] failed to load ${change.path}:`, err)
               return [change.path, null] as const
             }
           })
@@ -215,7 +219,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
 
       loadAll()
       return () => { cancelled = true }
-    }, [changes])
+    }, [changes, range])
 
     const toggleCollapse = useCallback((path: string) => {
       setCollapsedFiles((prev) => ({ ...prev, [path]: !prev[path] }))
@@ -276,6 +280,7 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
                 onRelocateComments={onRelocateComments}
                 existingComments={commentsByFile[change.path] ?? EMPTY_COMMENTS}
                 onInView={handleFileInView}
+                range={range}
               />
             )
           }}

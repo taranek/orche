@@ -14,4 +14,17 @@ export interface FileTreeNode {
 
 export type SidePanel = 'files' | 'comments' | 'theme'
 
+export type ReviewRange =
+  | { kind: 'all' }
+  | { kind: 'working' }
+  | { kind: 'commit'; sha: string }
+
+export interface ReviewCommit {
+  sha: string
+  shortSha: string
+  subject: string
+  author: string
+  date: string
+}
+
 export const REVIEW_ID = 'review-session'

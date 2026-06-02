@@ -1,5 +1,7 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
+type Range = { kind: 'all' } | { kind: 'working' } | { kind: 'commit'; sha: string }
+
 contextBridge.exposeInMainWorld('review', {
   getWorktreePath: (): Promise<string> =>
     ipcRenderer.invoke('review:getWorktreePath'),
@@ -7,21 +9,25 @@ contextBridge.exposeInMainWorld('review', {
   getTmuxTarget: (): Promise<string | null> =>
     ipcRenderer.invoke('review:getTmuxTarget'),
 
-  getChanges: (): Promise<
+  getChanges: (range?: Range): Promise<
     Array<{ path: string; name: string; status: 'modified' | 'added' | 'deleted' }>
-  > => ipcRenderer.invoke('files:getChanges'),
+  > => ipcRenderer.invoke('files:getChanges', { range }),
 
-  readOriginal: (filePath: string): Promise<string | null> =>
-    ipcRenderer.invoke('files:readOriginal', { filePath }),
+  getCommits: (): Promise<
+    Array<{ sha: string; shortSha: string; subject: string; author: string; date: string }>
+  > => ipcRenderer.invoke('review:getCommits'),
 
-  read: (filePath: string): Promise<string> =>
-    ipcRenderer.invoke('files:read', { filePath }),
+  readOriginal: (filePath: string, range?: Range): Promise<string | null> =>
+    ipcRenderer.invoke('files:readOriginal', { filePath, range }),
 
-  readBase64: (filePath: string): Promise<string | null> =>
-    ipcRenderer.invoke('files:readBase64', { filePath }),
+  read: (filePath: string, range?: Range): Promise<string> =>
+    ipcRenderer.invoke('files:read', { filePath, range }),
 
-  readOriginalBase64: (filePath: string): Promise<string | null> =>
-    ipcRenderer.invoke('files:readOriginalBase64', { filePath }),
+  readBase64: (filePath: string, range?: Range): Promise<string | null> =>
+    ipcRenderer.invoke('files:readBase64', { filePath, range }),
+
+  readOriginalBase64: (filePath: string, range?: Range): Promise<string | null> =>
+    ipcRenderer.invoke('files:readOriginalBase64', { filePath, range }),
 
   write: (filePath: string, content: string): Promise<void> =>
     ipcRenderer.invoke('files:write', { filePath, content }),

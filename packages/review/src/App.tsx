@@ -10,7 +10,7 @@ import {
 import { usePersistedTheme } from './hooks/usePersistedTheme'
 import { useFileStore } from './store/fileStore'
 // buildFileTree no longer needed — @pierre/trees handles tree construction from flat paths
-import type { FileChange, SidePanel } from './types'
+import type { FileChange, SidePanel, ReviewCommit, ReviewRange } from './types'
 import { REVIEW_ID } from './types'
 
 import { IconRail } from './components/IconRail'
@@ -21,6 +21,7 @@ import { PanelHeader } from './components/PanelHeader'
 import { EngineToggle } from './components/EngineToggle'
 import { ResizablePanel } from './components/ResizablePanel'
 import { SubmitReviewButton } from './components/SubmitReviewButton'
+import { CommitSelector } from './components/CommitSelector'
 import { GitBranch } from 'lucide-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { SubmittedScreen } from './components/SubmittedScreen'
@@ -29,6 +30,8 @@ import { CodeMirrorDiffView, type CodeMirrorDiffViewHandle } from './components/
 
 function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange: (name: PaletteName) => void }) {
   const [changes, setChanges] = useState<FileChange[]>([])
+  const [commits, setCommits] = useState<ReviewCommit[]>([])
+  const [range, setRange] = useState<ReviewRange>({ kind: 'all' })
   const selectedFile = useFileStore((s) => s.selectedFile)
   const selectFile = useFileStore((s) => s.selectFile)
   const [submitted, setSubmitted] = useState(false)
@@ -80,9 +83,13 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   }, [pendingComments])
 
   useEffect(() => {
-    window.review.getChanges().then(setChanges)
     window.review.getBranch().then(setBranch)
+    window.review.getCommits().then(setCommits)
   }, [])
+
+  useEffect(() => {
+    window.review.getChanges(range).then(setChanges)
+  }, [range])
 
 
   const activeFile = selectedFile ?? (changes.length > 0
@@ -262,6 +269,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
                   activeFile={activeFile}
                   onActiveFileChange={selectFile}
                   theme={palette.mode}
+                  range={range}
                 />
               ) : (
                 <CodeMirrorDiffView
@@ -275,6 +283,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
                   activeFile={activeFile}
                   onActiveFileChange={selectFile}
                   theme={palette.mode}
+                  range={range}
                 />
               )}
             </div>
@@ -292,6 +301,8 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
                   <span className="opacity-25">·</span>
                 </>
               )}
+              <CommitSelector commits={commits} range={range} onRangeChange={setRange} />
+              <span className="opacity-25">·</span>
               <span>{changes.length} file{changes.length !== 1 ? 's' : ''}</span>
               <span className="opacity-25">·</span>
               <span>{pendingComments.length} comment{pendingComments.length !== 1 ? 's' : ''}</span>

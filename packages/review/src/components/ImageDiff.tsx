@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReviewRange } from '../types'
 
 const IMAGE_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp', '.avif',
@@ -41,9 +42,10 @@ function ImagePanel({ label, src }: { label: string; src: string | null }) {
 interface ImageDiffProps {
   filePath: string
   status: 'added' | 'modified' | 'deleted'
+  range: ReviewRange
 }
 
-export function ImageDiff({ filePath, status }: ImageDiffProps) {
+export function ImageDiff({ filePath, status, range }: ImageDiffProps) {
   const [original, setOriginal] = useState<string | null>(null)
   const [modified, setModified] = useState<string | null>(null)
 
@@ -53,18 +55,18 @@ export function ImageDiff({ filePath, status }: ImageDiffProps) {
 
     async function load() {
       if (status !== 'added') {
-        const b64 = await window.review.readOriginalBase64(filePath)
+        const b64 = await window.review.readOriginalBase64(filePath, range)
         if (!cancelled && b64) setOriginal(`data:${mime};base64,${b64}`)
       }
       if (status !== 'deleted') {
-        const b64 = await window.review.readBase64(filePath)
+        const b64 = await window.review.readBase64(filePath, range)
         if (!cancelled && b64) setModified(`data:${mime};base64,${b64}`)
       }
     }
 
     load()
     return () => { cancelled = true }
-  }, [filePath, status])
+  }, [filePath, status, range])
 
   return (
     <div className="flex items-start justify-center gap-6 p-6">
