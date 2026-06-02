@@ -12,8 +12,8 @@ const DEFAULT_CONFIG = {
   layout: {
     direction: "horizontal",
     panes: [
-      { name: "agent", command: "claude" },
-      { name: "dev", command: "" },
+      { name: "agent", command: "echo 'replace me with your agent command (e.g. claude, codex, aider)'" },
+      { name: "dev", command: "echo 'replace me with your dev server command (e.g. pnpm dev)'" },
     ],
   },
 };
