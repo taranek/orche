@@ -89,6 +89,28 @@ export function buildFixture(): Fixture {
   }
 }
 
+/**
+ * Mimics the orche on-disk layout for submit tests:
+ *   <root>/.orche/worktrees/<name>   ← the worktree the review app runs against
+ *   <root>/.orche/reviews/<name>     ← where submit writes (and the CLI watches)
+ * Returns the worktree path plus the reviews dir submit is expected to target.
+ */
+export function buildWorktreeLayout(name = 'feature'): {
+  worktreePath: string
+  reviewsDir: string
+  cleanup(): void
+} {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'orche-submit-'))
+  const worktreePath = path.join(root, '.orche', 'worktrees', name)
+  mkdirSync(worktreePath, { recursive: true })
+  const reviewsDir = path.join(root, '.orche', 'reviews', name)
+  return {
+    worktreePath,
+    reviewsDir,
+    cleanup: () => rmSync(root, { recursive: true, force: true }),
+  }
+}
+
 /** Minimal repo with a single branch of the given name and one commit. */
 export function buildSingleBranchRepo(branch: string): { repo: string; cleanup(): void } {
   const repo = mkdtempSync(path.join(os.tmpdir(), 'orche-base-'))

@@ -1,11 +1,12 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { resolveBase, type Range } from './git'
 import { createGitBackend } from './git-backend'
+import { submitReview } from './submit'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -165,26 +166,18 @@ ipcMain.handle('files:write', async (_event, { filePath, content }: { filePath: 
 
 ipcMain.handle('review:submit', async (_event, { markdown }: { markdown: string }) => {
   console.log('[review] submit called')
-
   if (!worktreePath) return { success: false, error: 'No worktree path' }
 
-  const worktreeName = path.basename(worktreePath)
-  const reviewsDir = path.join(worktreePath, '..', '..', 'reviews', worktreeName)
-  await mkdir(reviewsDir, { recursive: true })
-  const filename = `${Date.now()}.md`
-  const reviewPath = path.join(reviewsDir, filename)
-  await writeFile(reviewPath, markdown, 'utf-8')
-  console.log('[review] saved to:', reviewPath)
-
-  // Write a .pending file for the CLI watcher to pick up
-  const pendingPath = path.join(reviewsDir, `${filename}.pending`)
-  await writeFile(pendingPath, JSON.stringify({
-    reviewPath,
-    multiplexer: agentMultiplexer,
-    paneId: agentPaneId,
-    workspaceId: sessionInfo?.workspaceId,
-  }), 'utf-8')
-  console.log('[review] pending file written:', pendingPath)
-
-  return { success: true, path: reviewPath }
+  const result = await submitReview({
+    worktreePath,
+    markdown,
+    target: {
+      multiplexer: agentMultiplexer,
+      paneId: agentPaneId,
+      workspaceId: sessionInfo?.workspaceId,
+    },
+    now: Date.now(),
+  })
+  console.log('[review] saved to:', result.path)
+  return result
 })

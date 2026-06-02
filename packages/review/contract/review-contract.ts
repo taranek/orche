@@ -4,10 +4,13 @@
 // Tauri adapter after the migration. If both pass, the backends are at parity.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import type { ReviewBackend, ReviewBackendFactory, BaseResolver, FileChange } from './types'
+import { readFileSync, existsSync } from 'node:fs'
+import path from 'node:path'
+import type { ReviewBackend, ReviewBackendFactory, BaseResolver, SubmitFn, FileChange } from './types'
 import {
   buildFixture,
   buildSingleBranchRepo,
+  buildWorktreeLayout,
   type Fixture,
   LOGO_AT_BASE,
   LOGO_AT_WORKTREE,
@@ -187,6 +190,88 @@ export function defineBaseResolutionContract(name: string, resolveBase: BaseReso
       const { repo, cleanup } = buildSingleBranchRepo('master')
       try {
         expect(await resolveBase(repo, 'nope-not-a-ref')).toBe('HEAD')
+      } finally {
+        cleanup()
+      }
+    })
+  })
+}
+
+/**
+ * Review submission contract. The .md + .pending files and especially the
+ * .pending JSON shape are consumed by the orche CLI watcher across a process
+ * boundary, so they must be byte-for-byte reproducible by any backend.
+ */
+export function defineSubmitContract(name: string, submit: SubmitFn): void {
+  describe(`submit contract: ${name}`, () => {
+    it('writes the review markdown to <reviews>/<now>.md and returns its path', async () => {
+      const { worktreePath, reviewsDir, cleanup } = buildWorktreeLayout()
+      try {
+        const result = await submit({
+          worktreePath,
+          markdown: '# Review\n\nLooks good.\n',
+          target: { multiplexer: 'tmux', paneId: '%3', workspaceId: 'ws1' },
+          now: 1234,
+        })
+        const expectedPath = path.join(reviewsDir, '1234.md')
+        expect(result).toEqual({ success: true, path: expectedPath })
+        expect(readFileSync(expectedPath, 'utf-8')).toBe('# Review\n\nLooks good.\n')
+      } finally {
+        cleanup()
+      }
+    })
+
+    it('writes a .pending sidecar with the exact CLI-consumed shape', async () => {
+      const { worktreePath, reviewsDir, cleanup } = buildWorktreeLayout()
+      try {
+        await submit({
+          worktreePath,
+          markdown: 'body',
+          target: { multiplexer: 'cmux', paneId: 'surface-7', workspaceId: 'wsX' },
+          now: 9999,
+        })
+        const pendingPath = path.join(reviewsDir, '9999.md.pending')
+        const pending = JSON.parse(readFileSync(pendingPath, 'utf-8'))
+        expect(pending).toEqual({
+          reviewPath: path.join(reviewsDir, '9999.md'),
+          multiplexer: 'cmux',
+          paneId: 'surface-7',
+          workspaceId: 'wsX',
+        })
+      } finally {
+        cleanup()
+      }
+    })
+
+    it('creates the reviews dir when it does not exist yet', async () => {
+      const { worktreePath, reviewsDir, cleanup } = buildWorktreeLayout()
+      try {
+        expect(existsSync(reviewsDir)).toBe(false)
+        await submit({
+          worktreePath,
+          markdown: 'x',
+          target: { multiplexer: 'tmux', paneId: '%1' },
+          now: 1,
+        })
+        expect(existsSync(reviewsDir)).toBe(true)
+      } finally {
+        cleanup()
+      }
+    })
+
+    it('omits workspaceId from the sidecar when not provided', async () => {
+      const { worktreePath, reviewsDir, cleanup } = buildWorktreeLayout()
+      try {
+        await submit({
+          worktreePath,
+          markdown: 'x',
+          target: { multiplexer: 'tmux', paneId: '%1' },
+          now: 42,
+        })
+        const pending = JSON.parse(readFileSync(path.join(reviewsDir, '42.md.pending'), 'utf-8'))
+        expect('workspaceId' in pending).toBe(false)
+        expect(pending.multiplexer).toBe('tmux')
+        expect(pending.paneId).toBe('%1')
       } finally {
         cleanup()
       }

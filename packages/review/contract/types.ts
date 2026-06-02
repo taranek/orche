@@ -57,3 +57,33 @@ export type ReviewBackendFactory = (worktreePath: string, base: string) => Revie
 
 /** Resolves the default base ref for a worktree (explicit override wins). */
 export type BaseResolver = (worktreePath: string, explicit?: string) => string | Promise<string>
+
+/**
+ * Where a submitted review should be delivered. Resolved at startup from
+ * session.json / CLI args. These fields are written verbatim into the .pending
+ * file that the orche CLI watcher consumes to inject the review into the agent's
+ * pane, so their names are a cross-process contract — do not rename.
+ */
+export interface SubmitTarget {
+  multiplexer: string | null
+  paneId?: string
+  workspaceId?: string
+}
+
+export interface SubmitResult {
+  success: boolean
+  path?: string
+  error?: string
+}
+
+/**
+ * Persists a submitted review: writes the markdown file and a sibling .pending
+ * file the CLI watches. `now` is injected (not read from the clock) so the
+ * timestamped filename is deterministic and testable across backends.
+ */
+export type SubmitFn = (opts: {
+  worktreePath: string
+  markdown: string
+  target: SubmitTarget
+  now: number
+}) => Promise<SubmitResult>
