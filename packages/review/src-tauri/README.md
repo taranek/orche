@@ -72,5 +72,9 @@ cd tauri-app && cargo check        # type-checks the commands + config
       `cargo check` passes
 - [x] session.json delivery-target resolution at parity (insertion-ordered
       "first pane" — needs serde_json `preserve_order`)
-- [ ] Wire `cargo tauri` into the build/release pipeline and ship a packaged app
-- [ ] Launch the Tauri window end-to-end (needs `@tauri-apps/cli`)
+- [x] End-to-end runtime: `cargo build` → runnable binary; launched against a
+      test repo the window opens, reviewClient routes through the __TAURI__
+      invoke bridge, and the diff renders correctly (same as electron)
+- [ ] Wire `cargo tauri` (or `cargo build --release` + bundling) into the
+      release pipeline and ship a signed packaged app
+- [ ] Retire the electron backend once the Tauri build is shipping
