@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the review window: core defaults plus the custom review commands.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}

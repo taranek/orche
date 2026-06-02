@@ -9,3 +9,4 @@ dist-electron
 release
 .idea/
 target/
+gen/schemas/

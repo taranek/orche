@@ -1,0 +1,17 @@
+[package]
+name = "orche-review"
+version = "0.0.1"
+edition = "2021"
+description = "Tauri shell for the orche review app. Thin command wrappers over the contract-tested orche-review-core."
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+orche-review-core = { path = ".." }
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+
+[[bin]]
+name = "orche-review"
+path = "src/main.rs"

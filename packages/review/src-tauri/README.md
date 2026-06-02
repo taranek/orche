@@ -43,6 +43,21 @@ src/lib.rs                 core git + submit logic (the real backend)
 src/bin/contract_cli.rs    JSON-over-stdio harness for the contract suite
 rust-adapter.ts            TS adapter binding the CLI to the contract interface
 rust-backend.contract.test.ts   wires the adapter into the shared contract
+tauri-app/                 Tauri shell crate (separate package; depends on
+                           orche-review-core via path = "..")
+  src/main.rs              #[tauri::command] wrappers + window/startup
+  tauri.conf.json          v2 config (frontendDist → ../../dist, withGlobalTauri)
+  capabilities/            invoke permissions
+```
+
+`tauri-app/` is a **separate crate** so the contract crate here stays lean —
+`cargo build` / `pnpm test:parity` never pull the (large) Tauri dependency tree.
+
+To build the shell (needs the Tauri toolchain / system webview):
+
+```bash
+cd tauri-app && cargo check        # type-checks the commands + config
+# cargo tauri dev                  # run the app (requires @tauri-apps/cli)
 ```
 
 ## Migration status
@@ -51,5 +66,9 @@ rust-backend.contract.test.ts   wires the adapter into the shared contract
       modified reads, base64) at parity with electron
 - [x] `resolveBase` precedence at parity
 - [x] `submitReview` (.md + .pending sidecar) at parity
-- [ ] Tauri app shell (`tauri.conf.json`, commands, window) — not started
-- [ ] Renderer IPC swap (`window.review.*` → Tauri `invoke`)
+- [x] Renderer routed through a backend seam (`src/lib/reviewClient.ts`) that
+      already dispatches to Tauri `invoke` when running under Tauri
+- [x] Tauri app shell — `#[tauri::command]` wrappers over core + window config;
+      `cargo check` passes
+- [ ] Wire `cargo tauri` into the build/release pipeline and ship a packaged app
+- [ ] Port full session.json delivery-target wiring from electron/main.ts
