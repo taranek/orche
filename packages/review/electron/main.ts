@@ -106,6 +106,10 @@ function createWindow() {
     vibrancy: 'fullscreen-ui',
     transparent: true,
     title: `Review — ${path.basename(worktreePath ?? '')}`,
+    // Packaged builds use the bundle's .icns/.ico (set via electron-builder).
+    // In dev the bundled icon isn't applied, so point at the PNG so Linux/Windows
+    // taskbars and the dev dock show the right thing.
+    icon: path.join(__dirname, '../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },

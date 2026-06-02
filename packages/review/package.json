@@ -30,6 +30,7 @@
       "!node_modules"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         {
           "target": "zip",
@@ -41,7 +42,11 @@
       ],
       "category": "public.app-category.developer-tools"
     },
+    "win": {
+      "icon": "build/icon.ico"
+    },
     "linux": {
+      "icon": "build/icons",
       "target": [
         {
           "target": "tar.gz",

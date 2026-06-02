@@ -1,6 +1,10 @@
-# orche
+<p align="center">
+  <img src="assets/orche.svg" alt="orche" width="128" height="128" />
+</p>
 
-Orchestrate coding agents across isolated git worktrees with a built-in code review UI.
+<h1 align="center">orche</h1>
+
+<p align="center">Orchestrate coding agents across isolated git worktrees with a built-in code review UI.</p>
 
 https://github.com/user-attachments/assets/35150d31-84ce-4f1d-8df9-4aef179dc532
 
