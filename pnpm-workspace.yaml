@@ -2,8 +2,5 @@ packages:
   - packages/*
 
 allowBuilds:
-  electron: set this to true or false
-
-onlyBuiltDependencies:
-  - electron
-  - esbuild
+  electron: true
+  esbuild: true
