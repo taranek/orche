@@ -5,6 +5,7 @@ import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { createWorktree } from "./worktree.js";
 import { pruneCommand } from "./prune.js";
+import { initCommand } from "./init.js";
 import { getMultiplexer } from "./multiplexer.js";
 import { buildLayout } from "./layout.js";
 import { getReviewBinaryPath } from "./review-manager.js";
@@ -161,14 +162,17 @@ function printUsage(): void {
 orche — orchestrate agents across git worktrees
 
 Usage:
+  orche init [-f]                    Bootstrap a repo: write .orche.json + .gitignore entry
   orche start <task> [-p <preset>]   Start a new session for <task>
   orche review [path]                Open the review UI for a worktree
   orche prune [--all] [-f]           Remove orche worktrees (interactive multiselect)
 
 Options:
   -p, --preset=<name>    Load .orche.<name>.json instead of .orche.json
+  -f, --force            (init/prune) overwrite/skip safety checks
 
 Examples:
+  orche init                        Create .orche.json + add .orche/ to .gitignore
   orche start fix-auth              Create worktree + session for "fix-auth"
   orche start fix-auth -p mobile    Use .orche.mobile.json preset
   orche start fix-auth -p debug     Use .orche.debug.json preset
@@ -178,10 +182,9 @@ Examples:
   orche prune --all                 Remove all orche worktrees
   orche prune --force               Allow removing worktrees with uncommitted changes
 
-Requires a ${CONFIG_NAME} file in the current directory.
+Requires a ${CONFIG_NAME} file in the current directory (run \`orche init\`).
 Use .orche.local.json for local overrides (not committed).
 Use .orche.<preset>.json for named presets (e.g. .orche.mobile.json).
-See .orche.example.json for the config format.
 `);
 }
 
@@ -195,6 +198,8 @@ async function main(): Promise<void> {
 
   if (subcommand === "start") {
     startSession();
+  } else if (subcommand === "init") {
+    initCommand(process.argv.slice(3));
   } else if (subcommand === "prune") {
     const repoRoot = getRepoRoot(process.cwd());
     await pruneCommand(repoRoot, process.argv.slice(3));
