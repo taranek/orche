@@ -37,6 +37,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   const selectFile = useFileStore((s) => s.selectFile)
   const [submitted, setSubmitted] = useState(false)
   const [splashDismissed, setSplashDismissed] = useState(false)
+  const [initialLoaded, setInitialLoaded] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('files')
   const [branch, setBranch] = useState<string | null>(null)
   const [diffEngine, setDiffEngine] = useState<'pierre' | 'codemirror'>('codemirror')
@@ -90,7 +91,10 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   }, [])
 
   useEffect(() => {
-    window.review.getChanges(range).then(setChanges)
+    window.review.getChanges(range).then((c) => {
+      setChanges(c)
+      setInitialLoaded(true)
+    })
   }, [range])
 
 
@@ -215,7 +219,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
 
   return (
     <div className="h-full flex flex-col bg-base rounded-[10px] overflow-hidden">
-      {!splashDismissed && <SplashScreen onDismiss={() => setSplashDismissed(true)} />}
+      {!splashDismissed && <SplashScreen ready={initialLoaded} onDismiss={() => setSplashDismissed(true)} />}
       {/* Top bar — macOS-style drag region with centered title */}
       <div
         className="h-9 shrink-0 relative z-30 flex items-center justify-center"

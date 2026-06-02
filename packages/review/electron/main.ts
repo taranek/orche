@@ -105,6 +105,8 @@ function createWindow() {
     trafficLightPosition: { x: 7, y: 4 },
     vibrancy: 'fullscreen-ui',
     transparent: true,
+    // Avoid the blank-window flash: stay hidden until the renderer has painted its first frame.
+    show: false,
     title: `Review — ${path.basename(worktreePath ?? '')}`,
     // Packaged builds use the bundle's .icns/.ico (set via electron-builder).
     // In dev the bundled icon isn't applied, so point at the PNG so Linux/Windows
@@ -114,6 +116,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
+
+  win.once('ready-to-show', () => win?.show())
 
   if (VITE_DEV_SERVER_URL) {
     win.webContents.openDevTools({ mode: 'detach' })

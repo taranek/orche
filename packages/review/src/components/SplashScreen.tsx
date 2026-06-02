@@ -1,41 +1,31 @@
 import { motion } from 'motion/react'
 
 interface SplashScreenProps {
+  /** True once initial data is loaded — splash fades out shortly after this flips. */
+  ready: boolean
   onDismiss: () => void
 }
 
 /**
- * Brief intro overlay shown on app startup. Auto-dismisses after a beat —
- * just long enough to register the brand mark and hide the empty-state flash
- * while changes are loading.
+ * Loading overlay shown until the first changes payload resolves.
+ * Stays mounted as long as `ready` is false; once true, animates out and calls onDismiss.
  */
-export function SplashScreen({ onDismiss }: SplashScreenProps) {
+export function SplashScreen({ ready, onDismiss }: SplashScreenProps) {
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-base"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-base"
       initial={{ opacity: 1 }}
-      animate={{ opacity: [1, 1, 0] }}
-      transition={{ duration: 1.4, times: [0, 0.7, 1], ease: 'easeOut' }}
-      onAnimationComplete={onDismiss}
+      animate={{ opacity: ready ? 0 : 1 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      onAnimationComplete={() => { if (ready) onDismiss() }}
     >
-      <motion.img
+      <img
         src="orche.svg"
         alt="orche"
         width={128}
         height={128}
-        className="drop-shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
-        initial={{ opacity: 0, scale: 0.92 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="drop-shadow-[0_8px_24px_color-mix(in_oklch,var(--fg)_25%,transparent)]"
       />
-      <motion.div
-        className="mt-5 text-fg-tertiary text-[11px] tracking-[0.2em] uppercase"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.7 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-      >
-        orche review
-      </motion.div>
     </motion.div>
   )
 }
