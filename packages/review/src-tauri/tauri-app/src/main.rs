@@ -97,15 +97,11 @@ fn main() {
     let explicit_base = arg_value(&argv, "--base=");
     let base = core::resolve_base(&worktree, explicit_base.as_deref());
 
-    // Delivery target for submitted reviews. The full session.json wiring from
-    // electron/main.ts can be ported here; argv flags cover the common case.
-    let target = core::SubmitTarget {
-        multiplexer: arg_value(&argv, "--tmux=")
-            .map(|_| "tmux".to_string())
-            .or_else(|| arg_value(&argv, "--surface=").map(|_| "cmux".to_string())),
-        pane_id: arg_value(&argv, "--tmux=").or_else(|| arg_value(&argv, "--surface=")),
-        workspace_id: None,
-    };
+    // Delivery target for submitted reviews — session.json + tmux/cmux flags,
+    // same precedence as electron (see core::resolve_submit_target / session.ts).
+    let tmux = arg_value(&argv, "--tmux=");
+    let cmux = arg_value(&argv, "--surface=");
+    let target = core::resolve_submit_target(&worktree, tmux.as_deref(), cmux.as_deref());
 
     tauri::Builder::default()
         .setup(move |app| {

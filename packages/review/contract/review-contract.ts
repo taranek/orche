@@ -6,11 +6,19 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
-import type { ReviewBackend, ReviewBackendFactory, BaseResolver, SubmitFn, FileChange } from './types'
+import type {
+  ReviewBackend,
+  ReviewBackendFactory,
+  BaseResolver,
+  SubmitFn,
+  TargetResolver,
+  FileChange,
+} from './types'
 import {
   buildFixture,
   buildSingleBranchRepo,
   buildWorktreeLayout,
+  buildSessionWorktree,
   type Fixture,
   LOGO_AT_BASE,
   LOGO_AT_WORKTREE,
@@ -272,6 +280,67 @@ export function defineSubmitContract(name: string, submit: SubmitFn): void {
         expect('workspaceId' in pending).toBe(false)
         expect(pending.multiplexer).toBe('tmux')
         expect(pending.paneId).toBe('%1')
+      } finally {
+        cleanup()
+      }
+    })
+  })
+}
+
+/**
+ * Delivery-target resolution from session.json + tmux/cmux flags. The
+ * insertion-order "first pane" rule is the subtle parity point here.
+ */
+export function defineTargetResolutionContract(name: string, resolve: TargetResolver): void {
+  describe(`target resolution contract: ${name}`, () => {
+    it('uses session.json multiplexer + first pane (insertion order) + workspaceId', async () => {
+      // panes inserted z-agent then a-dev: first-by-insertion is %1, first-by-sort is %2.
+      const { worktreePath, cleanup } = buildSessionWorktree({
+        multiplexer: 'cmux',
+        panes: { 'z-agent': '%1', 'a-dev': '%2' },
+        workspaceId: 'ws-42',
+      })
+      try {
+        expect(await resolve(worktreePath)).toEqual({
+          multiplexer: 'cmux',
+          paneId: '%1',
+          workspaceId: 'ws-42',
+        })
+      } finally {
+        cleanup()
+      }
+    })
+
+    it('falls back to the tmux flag when session.json is absent', async () => {
+      const { worktreePath, cleanup } = buildSessionWorktree(undefined)
+      try {
+        expect(await resolve(worktreePath, { tmuxTarget: '%9' })).toEqual({
+          multiplexer: 'tmux',
+          paneId: '%9',
+        })
+      } finally {
+        cleanup()
+      }
+    })
+
+    it('flag pane id wins over the session first pane', async () => {
+      const { worktreePath, cleanup } = buildSessionWorktree({
+        multiplexer: 'tmux',
+        panes: { agent: '%1' },
+      })
+      try {
+        const target = await resolve(worktreePath, { tmuxTarget: '%override' })
+        expect(target.paneId).toBe('%override')
+        expect(target.multiplexer).toBe('tmux')
+      } finally {
+        cleanup()
+      }
+    })
+
+    it('multiplexer is null with no session and no flags', async () => {
+      const { worktreePath, cleanup } = buildSessionWorktree(undefined)
+      try {
+        expect(await resolve(worktreePath)).toEqual({ multiplexer: null })
       } finally {
         cleanup()
       }

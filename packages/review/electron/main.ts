@@ -2,11 +2,11 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
-import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { resolveBase, type Range } from './git'
 import { createGitBackend } from './git-backend'
 import { submitReview } from './submit'
+import { resolveSubmitTarget } from './session'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -51,23 +51,14 @@ console.log('[review] baseRef:', baseRef)
 // the tested behavior IS the production behavior.
 const backend = worktreePath ? createGitBackend(worktreePath, baseRef) : null
 
-// Read session.json for pane targets (written by orche CLI at session creation)
-interface SessionInfo { multiplexer: string; panes: Record<string, string>; workspaceId?: string }
-let sessionInfo: SessionInfo | null = null
-try {
-  const sessionPath = path.join(worktreePath ?? '', '.orche', 'session.json')
-  sessionInfo = JSON.parse(readFileSync(sessionPath, 'utf-8'))
-} catch (e) {
-  console.log('[review] session.json read error:', e)
-}
-
-// Resolve the agent target: explicit flag > session.json first pane > nothing
-const agentMultiplexer = sessionInfo?.multiplexer ?? (tmuxTarget ? 'tmux' : cmuxSurface ? 'cmux' : null)
-const agentPaneId = tmuxTarget ?? cmuxSurface ?? (sessionInfo ? Object.values(sessionInfo.panes)[0] : undefined)
+// Resolve where submitted reviews are delivered (session.json + tmux/cmux flags).
+// See session.ts — contract-tested and mirrored by the Rust backend.
+const submitTarget = worktreePath
+  ? resolveSubmitTarget(worktreePath, { tmuxTarget, cmuxSurface })
+  : { multiplexer: null }
 
 console.log('[review] argv:', process.argv)
-console.log('[review] session.json:', sessionInfo)
-console.log('[review] agentMultiplexer:', agentMultiplexer, 'agentPaneId:', agentPaneId)
+console.log('[review] submitTarget:', submitTarget)
 
 let win: BrowserWindow | null
 
@@ -171,11 +162,7 @@ ipcMain.handle('review:submit', async (_event, { markdown }: { markdown: string 
   const result = await submitReview({
     worktreePath,
     markdown,
-    target: {
-      multiplexer: agentMultiplexer,
-      paneId: agentPaneId,
-      workspaceId: sessionInfo?.workspaceId,
-    },
+    target: submitTarget,
     now: Date.now(),
   })
   console.log('[review] saved to:', result.path)

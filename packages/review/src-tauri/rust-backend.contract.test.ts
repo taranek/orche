@@ -14,8 +14,9 @@ import {
   defineReviewContract,
   defineBaseResolutionContract,
   defineSubmitContract,
+  defineTargetResolutionContract,
 } from '../contract/review-contract'
-import { createRustBackend, rustResolveBase, rustSubmit } from './rust-adapter'
+import { createRustBackend, rustResolveBase, rustSubmit, rustResolveTarget } from './rust-adapter'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const BIN = path.join(here, 'target', 'debug', 'review-contract-cli')
@@ -24,6 +25,7 @@ if (existsSync(BIN)) {
   defineReviewContract('rust', createRustBackend(BIN))
   defineBaseResolutionContract('rust', rustResolveBase(BIN))
   defineSubmitContract('rust', rustSubmit(BIN))
+  defineTargetResolutionContract('rust', rustResolveTarget(BIN))
 } else {
   describe('rust backend contract', () => {
     it.skip('skipped — build the CLI first: (cd src-tauri && cargo build)', () => {})

@@ -70,5 +70,7 @@ cd tauri-app && cargo check        # type-checks the commands + config
       already dispatches to Tauri `invoke` when running under Tauri
 - [x] Tauri app shell — `#[tauri::command]` wrappers over core + window config;
       `cargo check` passes
+- [x] session.json delivery-target resolution at parity (insertion-ordered
+      "first pane" — needs serde_json `preserve_order`)
 - [ ] Wire `cargo tauri` into the build/release pipeline and ship a packaged app
-- [ ] Port full session.json delivery-target wiring from electron/main.ts
+- [ ] Launch the Tauri window end-to-end (needs `@tauri-apps/cli`)

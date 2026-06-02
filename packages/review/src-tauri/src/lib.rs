@@ -245,13 +245,15 @@ pub fn read_modified_base64(cwd: &str, base: &str, range: &Range, file_path: &st
     std::fs::read(&full).ok().map(|b| STANDARD.encode(b))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitTarget {
+    // Serialized even when None (as null) to match the JS resolver, which
+    // returns `multiplexer: null` rather than omitting it.
     pub multiplexer: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
 }
 
@@ -277,6 +279,66 @@ pub struct SubmitResult {
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// session.json as written by the orche CLI. `panes` is insertion-ordered
+/// (serde_json preserve_order) so "first pane" matches the JS side.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionInfo {
+    #[serde(default)]
+    multiplexer: Option<String>,
+    #[serde(default)]
+    panes: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    workspace_id: Option<String>,
+}
+
+/// Resolve the delivery target from <worktree>/.orche/session.json plus optional
+/// tmux/cmux flags. Mirrors resolveSubmitTarget in session.ts:
+///   multiplexer = session.multiplexer ?? (tmux ? "tmux" : cmux ? "cmux" : null)
+///   paneId      = tmux ?? cmux ?? first pane value in session.json
+///   workspaceId = session.workspaceId
+pub fn resolve_submit_target(
+    worktree_path: &str,
+    tmux_target: Option<&str>,
+    cmux_surface: Option<&str>,
+) -> SubmitTarget {
+    let session: Option<SessionInfo> =
+        std::fs::read_to_string(Path::new(worktree_path).join(".orche").join("session.json"))
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok());
+
+    let multiplexer = session
+        .as_ref()
+        .and_then(|s| s.multiplexer.clone())
+        .or_else(|| {
+            if tmux_target.is_some() {
+                Some("tmux".to_string())
+            } else if cmux_surface.is_some() {
+                Some("cmux".to_string())
+            } else {
+                None
+            }
+        });
+
+    let first_pane = session
+        .as_ref()
+        .and_then(|s| s.panes.values().next())
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let pane_id = tmux_target
+        .map(|s| s.to_string())
+        .or_else(|| cmux_surface.map(|s| s.to_string()))
+        .or(first_pane);
+
+    let workspace_id = session.as_ref().and_then(|s| s.workspace_id.clone());
+
+    SubmitTarget {
+        multiplexer,
+        pane_id,
+        workspace_id,
+    }
 }
 
 /// Persist a review: write `<reviews>/<now>.md` and a `<now>.md.pending` sidecar.

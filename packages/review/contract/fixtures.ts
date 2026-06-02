@@ -111,6 +111,24 @@ export function buildWorktreeLayout(name = 'feature'): {
   }
 }
 
+/**
+ * A worktree whose .orche/session.json `panes` map is in an insertion order
+ * that differs from sorted-key order. "First pane" must follow insertion order
+ * (z-agent → %1), so a backend using a sorted map would wrongly pick %2.
+ */
+export function buildSessionWorktree(
+  session: unknown,
+  name = 'feature',
+): { worktreePath: string; cleanup(): void } {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'orche-session-'))
+  const worktreePath = path.join(root, '.orche', 'worktrees', name)
+  mkdirSync(path.join(worktreePath, '.orche'), { recursive: true })
+  if (session !== undefined) {
+    writeFileSync(path.join(worktreePath, '.orche', 'session.json'), JSON.stringify(session))
+  }
+  return { worktreePath, cleanup: () => rmSync(root, { recursive: true, force: true }) }
+}
+
 /** Minimal repo with a single branch of the given name and one commit. */
 export function buildSingleBranchRepo(branch: string): { repo: string; cleanup(): void } {
   const repo = mkdtempSync(path.join(os.tmpdir(), 'orche-base-'))

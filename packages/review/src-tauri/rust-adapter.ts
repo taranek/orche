@@ -8,6 +8,7 @@ import type {
   ReviewBackendFactory,
   BaseResolver,
   SubmitFn,
+  TargetResolver,
   Range,
 } from '../contract/types'
 
@@ -42,4 +43,13 @@ export function rustResolveBase(bin: string): BaseResolver {
 export function rustSubmit(bin: string): SubmitFn {
   return ({ worktreePath, markdown, target, now }) =>
     Promise.resolve(call(bin, 'submit', { worktreePath, markdown, target, now }) as never)
+}
+
+export function rustResolveTarget(bin: string): TargetResolver {
+  return (worktreePath, opts = {}) =>
+    call(bin, 'resolveSubmitTarget', {
+      worktreePath,
+      tmuxTarget: opts.tmuxTarget,
+      cmuxSurface: opts.cmuxSurface,
+    }) as never
 }

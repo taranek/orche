@@ -24,6 +24,10 @@ struct Request {
     #[serde(default)]
     explicit: Option<String>,
     #[serde(default)]
+    tmux_target: Option<String>,
+    #[serde(default)]
+    cmux_surface: Option<String>,
+    #[serde(default)]
     markdown: Option<String>,
     #[serde(default)]
     target: Option<core::SubmitTarget>,
@@ -46,6 +50,11 @@ fn main() {
         "resolveBase" => {
             serde_json::to_string(&core::resolve_base(&req.worktree_path, req.explicit.as_deref()))
         }
+        "resolveSubmitTarget" => serde_json::to_string(&core::resolve_submit_target(
+            &req.worktree_path,
+            req.tmux_target.as_deref(),
+            req.cmux_surface.as_deref(),
+        )),
         "readOriginal" => serde_json::to_string(&core::read_original(
             &req.worktree_path,
             &req.base,

@@ -87,3 +87,13 @@ export type SubmitFn = (opts: {
   target: SubmitTarget
   now: number
 }) => Promise<SubmitResult>
+
+/**
+ * Resolves the delivery target from <worktree>/.orche/session.json plus optional
+ * tmux/cmux flags. The "first pane" rule depends on the panes map's insertion
+ * order, which the backend must preserve.
+ */
+export type TargetResolver = (
+  worktreePath: string,
+  opts?: { tmuxTarget?: string; cmuxSurface?: string },
+) => SubmitTarget | Promise<SubmitTarget>
