@@ -75,10 +75,10 @@ export function defineReviewContract(name: string, makeBackend: ReviewBackendFac
       ])
     })
 
-    it('getChanges sorts by path', async () => {
+    it('getChanges sorts by path (codepoint order, locale-independent)', async () => {
       const changes = await all.getChanges({ kind: 'all' })
       const paths = changes.map((c) => c.path)
-      expect(paths).toEqual([...paths].sort((a, b) => a.localeCompare(b)))
+      expect(paths).toEqual([...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
     })
 
     it('FileChange.name is the basename', async () => {

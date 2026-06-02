@@ -128,7 +128,9 @@ export async function getChangedFiles(cwd: string, base: string, range: Range): 
     path: filePath,
     name: filePath.split('/').pop() || filePath,
     status,
-  })).sort((a, b) => a.path.localeCompare(b.path))
+    // Codepoint sort (not localeCompare): deterministic and locale-independent,
+    // so a non-JS backend can reproduce the exact ordering.
+  })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
 }
 
 /** List commits in base..HEAD, newest first. */

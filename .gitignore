@@ -8,3 +8,4 @@ dist-electron
 .orche.local.json
 release
 .idea/
+target/

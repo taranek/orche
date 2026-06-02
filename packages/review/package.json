@@ -17,7 +17,8 @@
     "package": "pnpm build && electron-builder --publish never",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:parity": "cargo build --manifest-path src-tauri/Cargo.toml && vitest run"
   },
   "build": {
     "appId": "com.orche.review",

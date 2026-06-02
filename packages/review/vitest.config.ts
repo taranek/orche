@@ -6,6 +6,12 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['electron/**/*.test.ts', 'contract/**/*.test.ts'],
+    include: [
+      'electron/**/*.test.ts',
+      'contract/**/*.test.ts',
+      'src-tauri/**/*.test.ts',
+    ],
+    // src-tauri/target holds the Rust build — never let vitest descend into it.
+    exclude: ['**/node_modules/**', '**/target/**'],
   },
 })
