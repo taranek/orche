@@ -23,6 +23,7 @@ import { ResizablePanel } from './components/ResizablePanel'
 import { SubmitReviewButton } from './components/SubmitReviewButton'
 import { CommitSelector } from './components/CommitSelector'
 import { SplashScreen } from './components/SplashScreen'
+import { reviewClient } from './lib/reviewClient'
 import { GitBranch } from 'lucide-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { SubmittedScreen } from './components/SubmittedScreen'
@@ -86,12 +87,12 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   }, [pendingComments])
 
   useEffect(() => {
-    window.review.getBranch().then(setBranch)
-    window.review.getCommits().then(setCommits)
+    reviewClient.getBranch().then(setBranch)
+    reviewClient.getCommits().then(setCommits)
   }, [])
 
   useEffect(() => {
-    window.review.getChanges(range).then((c) => {
+    reviewClient.getChanges(range).then((c) => {
       setChanges(c)
       setInitialLoaded(true)
     })
@@ -107,7 +108,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     (filePath: string, content: string) => {
       revertedFiles.current.add(filePath)
       markUserEdited(REVIEW_ID, filePath)
-      window.review.write(filePath, content)
+      reviewClient.write(filePath, content)
     },
     [markUserEdited]
   )
@@ -148,7 +149,7 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     const fileContents: Record<string, string[]> = {}
     for (const file of Object.keys(grouped)) {
       try {
-        const content = await window.review.read(file)
+        const content = await reviewClient.read(file)
         fileContents[file] = content.split('\n')
       } catch {
         // If we can't read the file, we'll skip code context
@@ -200,12 +201,12 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
     }
     markdown += '\nPlease read each referenced file in full and address these review comments.\n'
 
-    await window.review.submit(markdown)
+    await reviewClient.submit(markdown)
 
     clearSubmitted(REVIEW_ID)
     clearUserEdits(REVIEW_ID)
     setSubmitted(true)
-    setTimeout(() => window.review.quit(), 1000)
+    setTimeout(() => reviewClient.quit(), 1000)
   }, [submitReview, clearSubmitted, getUserEditedFiles, clearUserEdits])
 
   // Cmd/Ctrl+Enter to submit review

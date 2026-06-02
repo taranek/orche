@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReviewRange } from '../types'
+import { reviewClient } from '../lib/reviewClient'
 
 const IMAGE_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp', '.avif',
@@ -55,11 +56,11 @@ export function ImageDiff({ filePath, status, range }: ImageDiffProps) {
 
     async function load() {
       if (status !== 'added') {
-        const b64 = await window.review.readOriginalBase64(filePath, range)
+        const b64 = await reviewClient.readOriginalBase64(filePath, range)
         if (!cancelled && b64) setOriginal(`data:${mime};base64,${b64}`)
       }
       if (status !== 'deleted') {
-        const b64 = await window.review.readBase64(filePath, range)
+        const b64 = await reviewClient.readBase64(filePath, range)
         if (!cancelled && b64) setModified(`data:${mime};base64,${b64}`)
       }
     }

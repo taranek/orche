@@ -8,6 +8,7 @@ import type { SelectedLineRange, OnDiffLineClickProps, AnnotationSide } from '@p
 import { InlineComment, CommentInput, type ExistingComment } from '@orche/shared'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { FileChange, ReviewRange } from '../types'
+import { reviewClient } from '../lib/reviewClient'
 
 interface CommentAnnotation {
   comment?: ExistingComment
@@ -68,8 +69,8 @@ function PierreDiffView({
         changes.map(async (change) => {
           try {
             const [orig, mod] = await Promise.all([
-              window.review.readOriginal(change.path, range),
-              window.review.read(change.path, range),
+              reviewClient.readOriginal(change.path, range),
+              reviewClient.read(change.path, range),
             ])
             return [change.path, {
               oldFile: { name: change.path, contents: orig ?? '' },

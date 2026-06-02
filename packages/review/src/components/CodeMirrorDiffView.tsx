@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, memo, forwardRef, useImperati
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { ExistingComment } from '@orche/shared'
 import type { FileChange, ReviewRange } from '../types'
+import { reviewClient } from '../lib/reviewClient'
 import { DiffFileHeader } from './DiffFileHeader'
 import { MergeViewEditor } from './MergeViewEditor'
 import { ImageDiff, isImageFile } from './ImageDiff'
@@ -168,8 +169,8 @@ export const CodeMirrorDiffView = forwardRef<CodeMirrorDiffViewHandle, CodeMirro
             }
             try {
               const [orig, mod] = await Promise.all([
-                window.review.readOriginal(change.path, range),
-                window.review.read(change.path, range),
+                reviewClient.readOriginal(change.path, range),
+                reviewClient.read(change.path, range),
               ])
               return [change.path, { original: orig ?? '', modified: mod }] as const
             } catch (err) {
