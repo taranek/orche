@@ -64,15 +64,15 @@ async function runReview(worktreePath: string): Promise<void> {
 
   console.log(`opening review for ${worktreePath}...`);
 
-  // Watch for .pending files from the Electron app and deliver them
-  // (Electron can't access the cmux socket — only CLI processes can)
+  // Watch for .pending files from the review app and deliver them.
+  // (The GUI app can't access the cmux socket — only CLI processes can.)
   const repoRoot = getRepoRoot(resolvedPath);
   const worktreeName = path.basename(resolvedPath);
   const reviewsDir = path.join(repoRoot, ".orche", "reviews", worktreeName);
   mkdirSync(reviewsDir, { recursive: true });
 
   // CLI stays alive to watch for .pending files and deliver them via cmux/tmux
-  // (Electron can't access the cmux socket — only processes started inside cmux can)
+  // (the GUI app can't access the cmux socket — only processes started inside cmux can)
   const watcher = watch(reviewsDir, (event, filename) => {
     if (event === "rename" && filename?.endsWith(".pending")) {
       const pendingPath = path.join(reviewsDir, filename);
@@ -89,19 +89,19 @@ async function runReview(worktreePath: string): Promise<void> {
     process.exit(code ?? 0);
   };
 
-  // Dev mode: launch electron from local monorepo
+  // Dev mode: launch the locally-built Tauri binary from the monorepo.
   const cliDir = path.dirname(new URL(import.meta.url).pathname);
   const localReviewDir = path.resolve(cliDir, "../../review");
   const devReviewPath = process.env.ORCHE_REVIEW_DEV ||
     (existsSync(path.join(localReviewDir, "package.json")) ? localReviewDir : undefined);
   const debug = !!process.env.ORCHE_DEBUG;
   if (devReviewPath) {
-    const electronBin = path.join(devReviewPath, "node_modules/.bin/electron");
-    if (debug) console.error(`[review] launching: ${electronBin} ${[devReviewPath, ...args].join(" ")}`);
-    const child = spawn(electronBin, [devReviewPath, ...args], {
-      stdio: ["ignore", "inherit", "inherit"],
-      env: { ...process.env, VITE_DEV_SERVER_URL: undefined },
-    });
+    const tauriBin = path.join(devReviewPath, "src-tauri", "target", "release", "orche-review");
+    if (!existsSync(tauriBin)) {
+      die(`review app not built — run:\n  (cd ${devReviewPath} && pnpm tauri build --no-bundle)`);
+    }
+    if (debug) console.error(`[review] launching: ${tauriBin} ${args.join(" ")}`);
+    const child = spawn(tauriBin, args, { stdio: ["ignore", "inherit", "inherit"] });
     child.on("exit", onReviewExit);
     return;
   }
