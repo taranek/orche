@@ -4,7 +4,10 @@
   "version": "0.0.1",
   "identifier": "com.orche.review",
   "build": {
-    "frontendDist": "../../dist"
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "withGlobalTauri": true,
@@ -28,10 +31,10 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "../../build/icons/32x32.png",
-      "../../build/icons/128x128.png",
-      "../../build/icon.icns",
-      "../../build/icon.ico"
+      "../build/icons/32x32.png",
+      "../build/icons/128x128.png",
+      "../build/icon.icns",
+      "../build/icon.ico"
     ]
   }
 }

@@ -18,7 +18,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:parity": "cargo build --manifest-path src-tauri/Cargo.toml && vitest run"
+    "test:parity": "cargo build --manifest-path src-tauri/core/Cargo.toml && vitest run"
   },
   "build": {
     "appId": "com.orche.review",
@@ -80,6 +80,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^25.2.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

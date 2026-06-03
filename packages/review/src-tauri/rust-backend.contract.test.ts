@@ -19,7 +19,7 @@ import {
 import { createRustBackend, rustResolveBase, rustSubmit, rustResolveTarget } from './rust-adapter'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const BIN = path.join(here, 'target', 'debug', 'review-contract-cli')
+const BIN = path.join(here, 'core', 'target', 'debug', 'review-contract-cli')
 
 if (existsSync(BIN)) {
   defineReviewContract('rust', createRustBackend(BIN))

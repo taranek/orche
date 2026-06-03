@@ -1,22 +1,17 @@
 [package]
-name = "orche-review-core"
+name = "orche-review"
 version = "0.0.1"
 edition = "2021"
-description = "Git-backed review backend for orche (Tauri target). Mirrors the electron git.ts behavior and is validated by the same contract suite."
+description = "Tauri shell for the orche review app. Thin command wrappers over the contract-tested orche-review-core."
 
-[lib]
-name = "orche_review_core"
-path = "src/lib.rs"
-
-# Thin CLI the TypeScript contract suite drives to prove parity with the
-# electron backend. Reads a JSON request on stdin, writes a JSON result on stdout.
-[[bin]]
-name = "review-contract-cli"
-path = "src/bin/contract_cli.rs"
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
+orche-review-core = { path = "core" }
+tauri = { version = "2", features = ["macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
-# preserve_order: session.json's `panes` map must keep insertion order so
-# "first pane" matches the JS Object.values(panes)[0] behavior (parity).
-serde_json = { version = "1", features = ["preserve_order"] }
-base64 = "0.22"
+
+[[bin]]
+name = "orche-review"
+path = "src/main.rs"
