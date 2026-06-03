@@ -13,7 +13,9 @@
 use orche_review_core as core;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, State, TitleBarStyle, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 
 /// Per-session config, resolved once at startup. Equivalent to the module-level
 /// worktreePath / baseRef / agent* values in electron/main.ts.
@@ -131,14 +133,22 @@ fn main() {
             // Visible from the start: a transparent + vibrancy window shows the
             // blur, not a white flash, so electron's hidden-until-ready dance
             // (which is fragile to reproduce on the embedded protocol) isn't needed.
-            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            let win_builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title(&window_title)
                 .inner_size(1200.0, 720.0)
                 .min_inner_size(1200.0, 720.0)
+                .transparent(true);
+
+            // title_bar_style / hidden_title are macOS-only on the builder; shadowing
+            // it under cfg keeps the Linux/Windows builds compiling (the overlay +
+            // hidden title chrome only exists on macOS anyway). Shadowing rather than
+            // `mut` avoids an unused_mut warning on the platforms that skip the block.
+            #[cfg(target_os = "macos")]
+            let win_builder = win_builder
                 .title_bar_style(TitleBarStyle::Overlay)
-                .hidden_title(true)
-                .transparent(true)
-                .build()?;
+                .hidden_title(true);
+
+            let win = win_builder.build()?;
 
             #[cfg(target_os = "macos")]
             {
