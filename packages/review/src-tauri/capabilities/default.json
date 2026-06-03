@@ -4,6 +4,7 @@
   "description": "Permissions for the review window: core defaults plus the custom review commands.",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "mcp-bridge:default"
   ]
 }

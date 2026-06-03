@@ -11,8 +11,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use orche_review_core as core;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, State};
+use tauri::{Manager, State, TitleBarStyle, WebviewUrl, WebviewWindowBuilder};
 
 /// Per-session config, resolved once at startup. Equivalent to the module-level
 /// worktreePath / baseRef / agent* values in electron/main.ts.
@@ -103,9 +104,52 @@ fn main() {
     let cmux = arg_value(&argv, "--surface=");
     let target = core::resolve_submit_target(&worktree, tmux.as_deref(), cmux.as_deref());
 
-    tauri::Builder::default()
+    let window_title = format!(
+        "Review — {}",
+        Path::new(&worktree)
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    );
+
+    let mut builder = tauri::Builder::default();
+
+    // Dev-only inspection bridge for the Tauri MCP server (console/DOM/screenshots).
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+    }
+
+    builder
         .setup(move |app| {
             app.manage(AppState { worktree, base, target });
+
+            // Build the window programmatically (vs. tauri.conf.json) so the title
+            // can include the worktree name and we can match electron's chrome:
+            // hidden-inset title bar, transparency + vibrancy, hidden until the
+            // first frame paints (no blank-window flash).
+            // Visible from the start: a transparent + vibrancy window shows the
+            // blur, not a white flash, so electron's hidden-until-ready dance
+            // (which is fragile to reproduce on the embedded protocol) isn't needed.
+            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title(&window_title)
+                .inner_size(1200.0, 720.0)
+                .min_inner_size(1200.0, 720.0)
+                .title_bar_style(TitleBarStyle::Overlay)
+                .hidden_title(true)
+                .transparent(true)
+                .build()?;
+
+            #[cfg(target_os = "macos")]
+            {
+                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+                // FullScreenUI matches electron's vibrancy: 'fullscreen-ui'.
+                let _ = apply_vibrancy(&win, NSVisualEffectMaterial::FullScreenUI, None, None);
+            }
+
+            #[cfg(debug_assertions)]
+            win.open_devtools();
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

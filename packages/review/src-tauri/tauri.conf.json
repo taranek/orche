@@ -12,17 +12,7 @@
   "app": {
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
-    "windows": [
-      {
-        "title": "orche review",
-        "width": 1200,
-        "height": 720,
-        "minWidth": 1200,
-        "minHeight": 720,
-        "titleBarStyle": "Overlay",
-        "transparent": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }
@@ -31,10 +21,11 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "../build/icons/32x32.png",
-      "../build/icons/128x128.png",
-      "../build/icon.icns",
-      "../build/icon.ico"
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
     ]
   }
 }

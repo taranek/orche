@@ -11,6 +11,12 @@ tauri-build = { version = "2", features = [] }
 orche-review-core = { path = "core" }
 tauri = { version = "2", features = ["macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
+# Dev-only: lets the Tauri MCP server inspect the running webview (console, DOM,
+# screenshots). Gated to debug builds in main.rs so it's never shipped.
+tauri-plugin-mcp-bridge = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+window-vibrancy = "0.6"
 
 [[bin]]
 name = "orche-review"

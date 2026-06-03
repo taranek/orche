@@ -14,8 +14,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "package": "pnpm build && electron-builder --publish never",
     "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:parity": "cargo build --manifest-path src-tauri/core/Cargo.toml && vitest run"
