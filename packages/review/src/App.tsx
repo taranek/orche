@@ -221,12 +221,13 @@ function ReviewApp({ theme, onThemeChange }: { theme: PaletteName; onThemeChange
   return (
     <div className="h-full flex flex-col bg-base rounded-[10px] overflow-hidden">
       {!splashDismissed && <SplashScreen ready={initialLoaded} onDismiss={() => setSplashDismissed(true)} />}
-      {/* Top bar — macOS-style drag region with centered title */}
+      {/* Top bar — Tauri window drag region with centered title. The label is
+          pointer-events-none so drags land on the region behind it. */}
       <div
         className="h-9 shrink-0 relative z-30 flex items-center justify-center"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        data-tauri-drag-region
       >
-        <span className="text-[11px] font-medium text-fg-tertiary tracking-wide" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <span className="text-[11px] font-medium text-fg-tertiary tracking-wide pointer-events-none">
           {branch ? `${branch}` : 'orche review'}
         </span>
       </div>

@@ -20,7 +20,6 @@ export function TabBar({ files }: { files: FileChange[] }) {
                 ? 'bg-base text-fg rounded-t-lg tab-notch'
                 : 'bg-transparent text-fg-secondary hover:text-fg'
             }`}
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             <File size={13} className="opacity-50" strokeWidth={1.5} />
             <span>{fileName}</span>
