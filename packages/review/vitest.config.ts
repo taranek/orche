@@ -1,13 +1,11 @@
 import { defineConfig } from 'vitest/config'
 
-// Dedicated config so vitest does NOT load the app's vite.config.ts (which wires
-// the electron + react plugins). These are plain node tests for the backend
-// contract — no DOM, no electron build.
+// Dedicated config so vitest does NOT load the app's vite.config.ts. These are
+// plain node tests for the backend parity contract — no DOM, no Tauri build.
 export default defineConfig({
   test: {
     environment: 'node',
     include: [
-      'electron/**/*.test.ts',
       'contract/**/*.test.ts',
       'src-tauri/**/*.test.ts',
     ],

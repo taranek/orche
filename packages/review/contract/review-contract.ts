@@ -1,7 +1,7 @@
 // The review backend contract — a single set of assertions that any backend
-// implementation must satisfy. Call defineReviewContract(name, makeBackend)
-// from a *.test.ts with the electron adapter today; call it again with the
-// Tauri adapter after the migration. If both pass, the backends are at parity.
+// implementation must satisfy. The Rust backend (src-tauri) is validated against
+// it via the contract CLI; the suite originally also ran against a TypeScript
+// reference backend to drive the electron→Tauri migration at parity.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'

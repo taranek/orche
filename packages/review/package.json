@@ -3,9 +3,8 @@
   "version": "0.0.26",
   "private": true,
   "type": "module",
-  "main": "dist-electron/main.js",
   "author": "taranek",
-  "description": "Code review UI for orche",
+  "description": "Code review UI for orche (Tauri)",
   "repository": {
     "type": "git",
     "url": "https://github.com/taranek/orche.git",
@@ -21,48 +20,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:parity": "cargo build --manifest-path src-tauri/core/Cargo.toml && vitest run"
-  },
-  "build": {
-    "appId": "com.orche.review",
-    "productName": "orche-review",
-    "publish": null,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "!node_modules"
-    ],
-    "mac": {
-      "icon": "build/icon.icns",
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "category": "public.app-category.developer-tools"
-    },
-    "win": {
-      "icon": "build/icon.ico"
-    },
-    "linux": {
-      "icon": "build/icons",
-      "target": [
-        {
-          "target": "tar.gz",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "category": "Development"
-    }
   },
   "dependencies": {
     "@codemirror/merge": "^6.12.1",
@@ -89,12 +46,9 @@
     "@vitejs/plugin-react": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "class-variance-authority": "^0.7.1",
-    "electron": "^41.0.3",
-    "electron-builder": "^24.13.3",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.2.2",
     "vite": "^8.0.5",
-    "vite-plugin-electron": "^0.29.1",
     "vitest": "^4.1.5"
   }
 }

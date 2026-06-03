@@ -1,80 +1,52 @@
-# orche-review-core (Tauri backend)
+# orche-review (Tauri)
 
-The Rust backend for the review app, the target of the electron → Tauri
-migration. It is a **behavioral mirror** of the electron backend
-(`../electron/git.ts` + `../electron/submit.ts`): same git invocations, same
-parsing, same fallbacks.
+The review app is a Tauri v2 desktop app: a React frontend (`../src`) over a
+Rust backend. This directory is the Tauri crate.
 
-## How parity is proven
+```
+src/main.rs        #[tauri::command] wrappers + window setup (vibrancy, title)
+tauri.conf.json    v2 config (frontendDist, devUrl, beforeDev/BuildCommand)
+capabilities/      invoke permissions
+icons/             app icon set (generated via `tauri icon`)
+core/              orche-review-core: the git + submit backend logic (a lib +
+                   a contract CLI), kept as a separate crate so the contract
+                   tests never pull the Tauri dependency tree
+rust-adapter.ts                 binds the contract CLI to the parity contract
+rust-backend.contract.test.ts   runs the contract against the Rust backend
+```
 
-The review backend has a single backend-agnostic contract in
-[`../contract/`](../contract). The same assertion suite runs against **both**
-implementations:
+## Backend logic + the parity contract
 
-| Backend  | Adapter                                   | Test file                                          |
-| -------- | ----------------------------------------- | -------------------------------------------------- |
-| electron | `electron/git-backend.ts` (calls git.ts)  | `electron/git-backend.contract.test.ts`            |
-| rust     | `src-tauri/rust-adapter.ts` (drives CLI)  | `src-tauri/rust-backend.contract.test.ts`          |
+All git-backed logic (`get_changes`, `get_commits`, `get_branch`, original/
+modified reads + base64, `resolve_base`, `submit_review`, `resolve_submit_target`)
+lives in `core/src/lib.rs`. The `#[tauri::command]`s in `src/main.rs` are thin
+wrappers over it.
 
-`rust-adapter.ts` shells out to the `review-contract-cli` binary — a thin
-JSON-over-stdio wrapper around `lib.rs` — so the TypeScript contract can
-exercise the Rust functions exactly as it exercises electron's. If both suites
-are green, the backends behave identically.
-
-## Run it
+`core` is exercised by a backend-agnostic contract in [`../contract/`](../contract):
+the `review-contract-cli` binary is driven by `rust-adapter.ts` so the same
+assertions validate the real Rust backend.
 
 ```bash
 # from packages/review/
-pnpm test:parity     # cargo build + vitest (electron + rust)
+pnpm test:parity     # cargo build core + vitest (54 contract assertions)
 ```
 
-Or manually:
+These assertions were authored during the electron→Tauri migration to prove the
+Rust backend matched the original TypeScript one byte-for-byte; they now stand
+as the regression guard for the backend.
+
+## Build & run
 
 ```bash
-cargo build                       # builds lib + review-contract-cli
-pnpm test                         # rust suite auto-detects the built binary;
-                                  # skipped (not failed) if it isn't there
+# from packages/review/
+pnpm tauri dev       # vite dev server + app (debug; MCP bridge active)
+pnpm tauri build     # production bundle (.app/.dmg/AppImage)
 ```
 
-## Layout
+Always go through the `tauri` CLI. A bare `cargo build --release` leaves
+`devUrl` active, so the binary tries to load the dev server and renders blank
+with nothing there — `tauri build` embeds the frontend instead.
 
-```
-src/lib.rs                 core git + submit logic (the real backend)
-src/bin/contract_cli.rs    JSON-over-stdio harness for the contract suite
-rust-adapter.ts            TS adapter binding the CLI to the contract interface
-rust-backend.contract.test.ts   wires the adapter into the shared contract
-tauri-app/                 Tauri shell crate (separate package; depends on
-                           orche-review-core via path = "..")
-  src/main.rs              #[tauri::command] wrappers + window/startup
-  tauri.conf.json          v2 config (frontendDist → ../../dist, withGlobalTauri)
-  capabilities/            invoke permissions
-```
-
-`tauri-app/` is a **separate crate** so the contract crate here stays lean —
-`cargo build` / `pnpm test:parity` never pull the (large) Tauri dependency tree.
-
-To build the shell (needs the Tauri toolchain / system webview):
-
-```bash
-cd tauri-app && cargo check        # type-checks the commands + config
-# cargo tauri dev                  # run the app (requires @tauri-apps/cli)
-```
-
-## Migration status
-
-- [x] Core git read logic (`getChanges`, `getCommits`, `getBranch`, original/
-      modified reads, base64) at parity with electron
-- [x] `resolveBase` precedence at parity
-- [x] `submitReview` (.md + .pending sidecar) at parity
-- [x] Renderer routed through a backend seam (`src/lib/reviewClient.ts`) that
-      already dispatches to Tauri `invoke` when running under Tauri
-- [x] Tauri app shell — `#[tauri::command]` wrappers over core + window config;
-      `cargo check` passes
-- [x] session.json delivery-target resolution at parity (insertion-ordered
-      "first pane" — needs serde_json `preserve_order`)
-- [x] End-to-end runtime: `cargo build` → runnable binary; launched against a
-      test repo the window opens, reviewClient routes through the __TAURI__
-      invoke bridge, and the diff renders correctly (same as electron)
-- [ ] Wire `cargo tauri` (or `cargo build --release` + bundling) into the
-      release pipeline and ship a signed packaged app
-- [ ] Retire the electron backend once the Tauri build is shipping
+`orche review` launches the built binary
+(`src-tauri/target/release/orche-review`) in the monorepo, or the downloaded
+release bundle for end users.

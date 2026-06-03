@@ -1,9 +1,10 @@
-// Single seam between the renderer and the backend. The UI calls reviewClient.*
-// and never touches window.review or Tauri invoke directly — so swapping the
-// electron backend for Tauri is this one file, not a sweep across components.
+// Single seam between the renderer and the Tauri backend. The UI calls
+// reviewClient.* and never touches the Tauri invoke bridge directly.
 //
-// Runtime detection: Tauri injects window.__TAURI__ (with app.withGlobalTauri),
-// electron exposes window.review via the preload bridge.
+// Uses the global __TAURI__ bridge (app.withGlobalTauri = true) so no
+// @tauri-apps/api dependency is needed in the renderer bundle. Command names
+// and arg keys map onto the #[tauri::command] wrappers in src-tauri; Tauri
+// converts camelCase JS arg keys (filePath) to snake_case params (file_path).
 
 import type { ReviewRange, ReviewCommit, FileChange } from '../types'
 
@@ -22,48 +23,25 @@ export interface ReviewClient {
 
 const DEFAULT_RANGE: ReviewRange = { kind: 'all' }
 
-// --- electron backend (current) ---
-
-const electronClient: ReviewClient = {
-  getChanges: (range) => window.review.getChanges(range),
-  getCommits: () => window.review.getCommits(),
-  getBranch: () => window.review.getBranch(),
-  read: (filePath, range) => window.review.read(filePath, range),
-  readOriginal: (filePath, range) => window.review.readOriginal(filePath, range),
-  readBase64: (filePath, range) => window.review.readBase64(filePath, range),
-  readOriginalBase64: (filePath, range) => window.review.readOriginalBase64(filePath, range),
-  write: (filePath, content) => window.review.write(filePath, content),
-  submit: (markdown) => window.review.submit(markdown),
-  quit: () => window.review.quit(),
-}
-
-// --- Tauri backend (migration target) ---
-// Uses the global __TAURI__ bridge (app.withGlobalTauri = true) so no
-// @tauri-apps/api dependency is needed in the renderer bundle. Command names
-// and arg keys map onto the #[tauri::command] wrappers in src-tauri; Tauri
-// converts camelCase JS arg keys to snake_case Rust params automatically.
-
 interface TauriBridge {
   core: { invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> }
 }
 
-function tauri(): TauriBridge {
-  return (window as unknown as { __TAURI__: TauriBridge }).__TAURI__
+function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const bridge = (window as unknown as { __TAURI__?: TauriBridge }).__TAURI__
+  if (!bridge) return Promise.reject(new Error('Tauri bridge unavailable — the review app must run under Tauri'))
+  return bridge.core.invoke<T>(cmd, args)
 }
 
-const tauriClient: ReviewClient = {
-  getChanges: (range = DEFAULT_RANGE) => tauri().core.invoke('get_changes', { range }),
-  getCommits: () => tauri().core.invoke('get_commits'),
-  getBranch: () => tauri().core.invoke('get_branch'),
-  read: (filePath, range = DEFAULT_RANGE) => tauri().core.invoke('read_modified', { filePath, range }),
-  readOriginal: (filePath, range = DEFAULT_RANGE) => tauri().core.invoke('read_original', { filePath, range }),
-  readBase64: (filePath, range = DEFAULT_RANGE) => tauri().core.invoke('read_modified_base64', { filePath, range }),
-  readOriginalBase64: (filePath, range = DEFAULT_RANGE) => tauri().core.invoke('read_original_base64', { filePath, range }),
-  write: (filePath, content) => tauri().core.invoke('write_file', { filePath, content }),
-  submit: (markdown) => tauri().core.invoke('submit_review', { markdown }),
-  quit: () => { void tauri().core.invoke('quit') },
+export const reviewClient: ReviewClient = {
+  getChanges: (range = DEFAULT_RANGE) => invoke('get_changes', { range }),
+  getCommits: () => invoke('get_commits'),
+  getBranch: () => invoke('get_branch'),
+  read: (filePath, range = DEFAULT_RANGE) => invoke('read_modified', { filePath, range }),
+  readOriginal: (filePath, range = DEFAULT_RANGE) => invoke('read_original', { filePath, range }),
+  readBase64: (filePath, range = DEFAULT_RANGE) => invoke('read_modified_base64', { filePath, range }),
+  readOriginalBase64: (filePath, range = DEFAULT_RANGE) => invoke('read_original_base64', { filePath, range }),
+  write: (filePath, content) => invoke('write_file', { filePath, content }),
+  submit: (markdown) => invoke('submit_review', { markdown }),
+  quit: () => { void invoke('quit') },
 }
-
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
-
-export const reviewClient: ReviewClient = isTauri ? tauriClient : electronClient

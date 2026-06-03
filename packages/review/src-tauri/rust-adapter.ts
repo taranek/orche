@@ -1,6 +1,6 @@
 // Drives the Rust `review-contract-cli` binary through the backend-agnostic
-// contract interfaces. This is what lets the SAME assertions that validate the
-// electron backend also validate the Rust one — the parity proof.
+// contract interfaces, so the parity assertions run against the real Rust
+// backend that ships in the Tauri app.
 
 import { execFileSync } from 'node:child_process'
 import type {
