@@ -5,14 +5,21 @@ import {
   appendFileSync,
   mkdirSync,
   symlinkSync,
+  copyFileSync,
   readdirSync,
   lstatSync,
 } from "node:fs";
 import path from "node:path";
+import type { WorktreeIncludeMode } from "./types.js";
 
 export interface WorktreeInfo {
   worktreePath: string;
   branchName: string;
+}
+
+export interface CreateWorktreeOptions {
+  /** How `.worktreeinclude` files are placed into the worktree. Defaults to "copy". */
+  includeMode?: WorktreeIncludeMode;
 }
 
 function slugify(text: string): string {
@@ -45,7 +52,11 @@ function ensureGitRepo(repoPath: string): void {
   }
 }
 
-export function createWorktree(repoPath: string, name: string): WorktreeInfo {
+export function createWorktree(
+  repoPath: string,
+  name: string,
+  options: CreateWorktreeOptions = {}
+): WorktreeInfo {
   ensureGitRepo(repoPath);
 
   const slug = slugify(name);
@@ -64,9 +75,71 @@ export function createWorktree(repoPath: string, name: string): WorktreeInfo {
   });
 
   symlinkNodeModules(repoPath, worktreePath);
+  applyWorktreeIncludes(repoPath, worktreePath, options.includeMode ?? "copy");
 
   console.log(`  worktree: ${worktreePath} (${branchName})`);
   return { worktreePath, branchName };
+}
+
+/**
+ * Places gitignored files listed in a `.worktreeinclude` file (`.gitignore`
+ * syntax) from the main checkout into the freshly created worktree. A worktree
+ * is a clean checkout, so untracked files like `.env` aren't present otherwise.
+ *
+ * In "copy" mode (the default) each file is duplicated, so the worktree can
+ * diverge freely. In "symlink" mode each file links back to the main checkout,
+ * so edits are shared — handy for config you keep in lockstep, but it means a
+ * worktree editing e.g. `.env` mutates the main checkout.
+ *
+ * Only untracked files matching a `.worktreeinclude` pattern are placed —
+ * tracked files are never duplicated. The match is computed with `git ls-files
+ * --others --ignored --exclude-from`: `--others` restricts to untracked files,
+ * and omitting `--exclude-standard` means only the `.worktreeinclude` patterns
+ * (not the repo's normal `.gitignore`) decide what matches.
+ */
+export function applyWorktreeIncludes(
+  repoPath: string,
+  worktreePath: string,
+  mode: WorktreeIncludeMode = "copy"
+): void {
+  const includeFile = path.join(repoPath, ".worktreeinclude");
+  if (!existsSync(includeFile)) return;
+
+  let output: string;
+  try {
+    output = execFileSync(
+      "git",
+      ["ls-files", "-z", "--others", "--ignored", "--exclude-from", includeFile],
+      { cwd: repoPath, encoding: "utf-8" }
+    );
+  } catch {
+    return;
+  }
+
+  let placed = 0;
+  for (const rel of output.split("\0").filter(Boolean)) {
+    const src = path.join(repoPath, rel);
+    const dest = path.join(worktreePath, rel);
+    try {
+      if (!lstatSync(src).isFile()) continue;
+      if (existsSync(dest)) continue;
+      mkdirSync(path.dirname(dest), { recursive: true });
+      if (mode === "symlink") {
+        symlinkSync(src, dest);
+      } else {
+        copyFileSync(src, dest);
+      }
+      placed++;
+    } catch {
+      // Skip files that vanished or can't be read; placement is best-effort.
+    }
+  }
+
+  if (placed > 0) {
+    const noun = placed === 1 ? "file" : "files";
+    const verb = mode === "symlink" ? "symlinked" : "copied";
+    console.log(`  ${verb} ${placed} gitignored ${noun} from .worktreeinclude`);
+  }
 }
 
 export interface OrcheWorktree {

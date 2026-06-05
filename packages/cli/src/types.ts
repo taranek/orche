@@ -14,8 +14,21 @@ export interface SplitConfig {
 
 export type MultiplexerType = "tmux" | "cmux" | "auto";
 
+/** How `.worktreeinclude` files are placed into a new worktree. */
+export type WorktreeIncludeMode = "copy" | "symlink";
+
+export interface WorktreeConfig {
+  /**
+   * Whether gitignored files matched by `.worktreeinclude` are copied into the
+   * worktree (independent per-worktree copies, the default) or symlinked back
+   * to the main checkout (shared, so edits propagate). Defaults to "copy".
+   */
+  includeMode?: WorktreeIncludeMode;
+}
+
 export interface AgentsConfig {
   multiplexer?: MultiplexerType;
+  worktree?: WorktreeConfig;
   layout: PaneConfig | SplitConfig;
 }
 
