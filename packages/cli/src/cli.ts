@@ -139,7 +139,9 @@ function startSession(): void {
 
   // 1. Create worktree
   console.log(`creating worktree for "${taskName}"...`);
-  const { worktreePath } = createWorktree(cwd, taskName);
+  const { worktreePath } = createWorktree(cwd, taskName, {
+    includeMode: config.worktree?.includeMode,
+  });
 
   // 2. Create session
   const sessionName = `${repoName}-${taskName}`.replace(

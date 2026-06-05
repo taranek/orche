@@ -143,6 +143,29 @@ orche detects whether you're in tmux or [cmux](https://cmux.dev/). To force one,
 
 Use `"tmux"` (the default) or `"cmux"`.
 
+### Gitignored files in worktrees (`.worktreeinclude`)
+
+A worktree is a clean checkout, so untracked files like `.env` from your main checkout aren't there. List the ones you want carried over in a `.worktreeinclude` file at the project root. It uses `.gitignore` syntax, and only untracked files matching a pattern are placed — tracked files are never duplicated:
+
+```text
+.env
+.env.local
+config/secrets.json
+```
+
+By default the files are **copied**, so each worktree gets its own independent copy. To **symlink** them back to the main checkout instead (shared, so edits propagate both ways), set `worktree.includeMode`:
+
+```json
+{
+  "worktree": {
+    "includeMode": "symlink"
+  },
+  "layout": { ... }
+}
+```
+
+Use `"copy"` (the default) or `"symlink"`. Note that with `"symlink"`, a worktree editing a file like `.env` mutates the main checkout.
+
 ### `.orche.local.json`
 
 Same format as `.orche.json`, and it wins when both exist. It's gitignored by default, so it's the place for personal overrides that shouldn't touch the team config.
