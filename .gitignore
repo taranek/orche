@@ -10,3 +10,4 @@ release
 .idea/
 target/
 **/gen/schemas/
+packages/cli/README.md
