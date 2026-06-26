@@ -51,14 +51,18 @@ export class CmuxMultiplexer implements Multiplexer {
   }
 
   splitPane(
-    _target: string,
+    target: string,
     direction: "horizontal" | "vertical",
     _sizePercent: number,
     cwd: string
   ): void {
     const cmuxDir = direction === "horizontal" ? "right" : "down";
+    // Split the requested surface explicitly. Without --surface, cmux splits
+    // whatever is focused, which lands nested splits on the wrong pane
+    // (focusPane is a no-op and sendCommand refocuses the agent surface).
+    const targetFlag = target ? ` --surface ${target}` : "";
     // new-split returns "OK surface:<ref> workspace:<ref>"
-    const output = run(`cmux new-split ${cmuxDir}`);
+    const output = run(`cmux new-split ${cmuxDir}${targetFlag}`);
 
     const match = output.match(/surface:(\S+)/);
     if (match) {

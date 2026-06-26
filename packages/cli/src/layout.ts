@@ -34,7 +34,9 @@ export function buildLayout(
   for (let i = 1; i < node.panes.length; i++) {
     const child = node.panes[i];
     const sizePercent = child.size ?? Math.floor(100 / (node.panes.length - i + 1));
-    mux.splitPane(paneIds[0], node.direction, sizePercent, worktreePath);
+    // Chain off the previous sibling (like collectPaneMap) so flat columns keep
+    // left-to-right order once splitPane honors its target surface.
+    mux.splitPane(paneIds[i - 1], node.direction, sizePercent, worktreePath);
     paneIds.push(mux.getActivePaneId(session));
   }
 
