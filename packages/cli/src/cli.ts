@@ -48,16 +48,24 @@ function deliverReview(pendingPath: string): void {
 }
 
 async function runReview(worktreePath: string): Promise<void> {
-  const resolvedPath = path.resolve(worktreePath);
+  const inputPath = path.resolve(worktreePath);
 
   // Refuse to run unless the target is inside a git worktree — otherwise the
   // review app may try to recursively watch enormous trees (e.g. $HOME).
+  // Anchor at the worktree root: `git diff --name-status` emits root-relative
+  // paths, so the review app must run from the top-level or file reads (which
+  // join cwd + path) break when invoked from a subdirectory.
+  let resolvedPath: string;
   try {
-    execFileSync("git", ["-C", resolvedPath, "rev-parse", "--show-toplevel"], {
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+    resolvedPath = execFileSync(
+      "git",
+      ["-C", inputPath, "rev-parse", "--show-toplevel"],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    )
+      .toString()
+      .trim();
   } catch {
-    die(`not a git worktree: ${resolvedPath}`);
+    die(`not a git worktree: ${inputPath}`);
   }
 
   const args = ["--worktree=" + resolvedPath];
